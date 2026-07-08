@@ -1,0 +1,42 @@
+[package]
+name = "tempest"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+loadsmith = { path = "../loadsmith/crates/loadsmith" }
+thunderstore = { path = "../thunderstore-client" }
+
+dialoguer = "0.12.0"
+tabled = "0.21.0"
+clap = { version = "4.6.1", features = ["derive"] }
+dirs-next = "2.0.0"
+tracing-indicatif = "0.3.14"
+tokio = { version = "1.52.3", features = ["full"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = [
+    "env-filter",
+    "fmt",
+    "json",
+] }
+anyhow = "1.0.103"
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "1.1.2"
+tempfile = "3.27.0"
+reqwest = { version = "0.13.4", features = ["gzip", "json"] }
+futures = "0.3.32"
+bytes = "1.12.0"
+camino = { version = "1.2.4", features = ["serde1"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+serde_json = "1.0.150"
+uuid = "1.23.4"
+termcolor = "1.4.1"
+colored = "3.1.1"
+walkdir = "2.5.0"
+humantime = "2.4.0"
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
