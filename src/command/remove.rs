@@ -1,4 +1,4 @@
-use loadsmith::core::PackageId;
+use loadsmith::PackageId;
 
 use crate::{Context, Result};
 

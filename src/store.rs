@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use loadsmith::core::PackageRef;
+use loadsmith::PackageRef;
 use walkdir::WalkDir;
 
 use crate::Context;

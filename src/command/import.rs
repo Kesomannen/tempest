@@ -1,10 +1,7 @@
 use std::{collections::BTreeMap, io::Cursor, path::PathBuf};
 
 use anyhow::{Context as _, bail};
-use loadsmith::{
-    core::{PackageId, VersionRange},
-    thunderstore::{PackageIdExt, r2z},
-};
+use loadsmith::{PackageId, VersionRange, r2z, thunderstore::PackageIdExt};
 use tracing::{debug, info, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 use uuid::Uuid;

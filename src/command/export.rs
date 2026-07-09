@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::{Context as _, bail};
-use loadsmith::thunderstore::{PackageIdExt, r2z};
+use loadsmith::{r2z, thunderstore::PackageIdExt};
 use tracing::{debug, info, warn};
 use tracing_indicatif::span_ext::IndicatifSpanExt;
 

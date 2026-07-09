@@ -2,7 +2,7 @@ use std::process::{Command, Stdio};
 
 use anyhow::Context as _;
 use colored::Colorize;
-use loadsmith::{loader::Loader, platform::Platform};
+use loadsmith::{Loader, Platform};
 use tokio::io::{AsyncBufReadExt, AsyncRead};
 use tracing::{debug, info, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};

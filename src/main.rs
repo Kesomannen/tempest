@@ -1,9 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use loadsmith::{
-    registry::local::LocalRegistry,
-    thunderstore::{ThunderstoreRegistry, sqlite::SqliteIndex},
-};
+use loadsmith::{LocalRegistry, RegistrySet, ThunderstoreRegistry, thunderstore::SqliteIndex};
 use tracing::{debug, error, warn};
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
@@ -70,7 +67,7 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
     let index = SqliteIndex::open(thunderstore.clone(), home_dir.join("index.db"))
         .context("failed to open index")?;
 
-    let mut registry_set = loadsmith::registry::RegistrySet::new();
+    let mut registry_set = RegistrySet::new();
     registry_set.add("local", LocalRegistry::new());
     registry_set.add(
         "thunderstore",

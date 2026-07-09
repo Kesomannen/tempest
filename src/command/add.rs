@@ -1,5 +1,5 @@
 use anyhow::{Context as _, bail, ensure};
-use loadsmith::core::{PackageId, VersionRange};
+use loadsmith::{PackageId, VersionRange};
 use tracing::{debug, info};
 
 use crate::{Context, Result, index, profile::Profile};

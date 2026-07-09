@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, bail};
 use camino::Utf8Path;
-use loadsmith::manifest::{Lockfile, ProfileState, ProfileStateData};
+use loadsmith::{Lockfile, ProfileState, ProfileStateData};
 use tracing::debug;
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
@@ -182,7 +182,7 @@ impl Profile {
 
         let _enter = span.enter();
 
-        loadsmith::manifest::resolve(
+        loadsmith::resolve(
             self.manifest.mods.clone().into_dependencies(),
             &ctx.registry_set,
             if update { None } else { Some(&self.lockfile) },

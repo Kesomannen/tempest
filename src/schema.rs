@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use loadsmith::core::PackageRef;
+use loadsmith::PackageRef;
 use thunderstore::models::schema;
 
 use crate::{Context, Result};
@@ -24,7 +24,7 @@ impl ThunderstoreSchema {
         self.inner.games.get(game).context("unknown game")
     }
 
-    pub fn make_loader(&self, game: &str) -> Result<Box<dyn loadsmith::loader::Loader>> {
+    pub fn make_loader(&self, game: &str) -> Result<Box<dyn loadsmith::Loader>> {
         let config = self
             .game(game)?
             .r2modman
@@ -40,7 +40,7 @@ impl ThunderstoreSchema {
         Ok(loader)
     }
 
-    pub fn make_platform(&self, game: &str) -> Result<loadsmith::platform::Platform> {
+    pub fn make_platform(&self, game: &str) -> Result<loadsmith::Platform> {
         let distribution = self
             .game(game)?
             .distributions

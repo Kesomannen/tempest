@@ -1,6 +1,6 @@
 use std::{cell::RefCell, path::PathBuf};
 
-use loadsmith::{registry::RegistrySet, thunderstore::sqlite::SqliteIndex};
+use loadsmith::{RegistrySet, thunderstore::SqliteIndex};
 
 use crate::{Config, Result, profile::Profile};
 

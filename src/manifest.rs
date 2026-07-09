@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::anyhow;
-use loadsmith::core::{Dependency, PackageId, VersionRange};
+use loadsmith::{Dependency, PackageId, VersionRange};
 use serde::{Deserialize, Serialize};
 
 use crate::Result;

@@ -1,4 +1,4 @@
-use loadsmith::manifest::{Diff, LockedPackage};
+use loadsmith::{LockedPackage, manifest::Diff};
 use tracing::{debug, info};
 
 pub fn log_lockfile_diff(diff: &Diff<LockedPackage, LockedPackage>) {

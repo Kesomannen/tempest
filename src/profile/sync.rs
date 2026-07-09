@@ -6,9 +6,7 @@ use std::{
 
 use anyhow::Context as _;
 use futures::{StreamExt, TryStreamExt, stream};
-use loadsmith::{
-    core::PackageRef, install::InstallRuleset, loader::Loader, manifest::LockedPackage,
-};
+use loadsmith::{InstallRuleset, Loader, LockedPackage, PackageRef};
 use tracing::{debug, info};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
@@ -138,13 +136,8 @@ async fn download_uncached_packages(
                     fs::create_dir_all(&target)
                         .context("failed to create package store directory")?;
 
-                    loadsmith::install::extract(
-                        Cursor::new(bytes),
-                        &package.ref_,
-                        ruleset,
-                        &target,
-                    )
-                    .with_context(|| format!("error while extracting {}", package.ref_.id))?;
+                    loadsmith::extract(Cursor::new(bytes), &package.ref_, ruleset, &target)
+                        .with_context(|| format!("error while extracting {}", package.ref_.id))?;
 
                     Ok::<_, anyhow::Error>(package)
                 })
