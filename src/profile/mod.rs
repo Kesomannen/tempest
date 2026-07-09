@@ -166,9 +166,11 @@ impl Profile {
 
         crate::fmt::log_lockfile_diff(&diff);
 
-        self.lockfile = new_lockfile;
+        if !diff.is_empty() {
+            self.lockfile = new_lockfile;
 
-        self.write_lockfile()?;
+            self.write_lockfile()?;
+        }
 
         Ok(())
     }
