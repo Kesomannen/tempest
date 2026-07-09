@@ -18,12 +18,10 @@ pub fn package_dir(ctx: &Context, package: &PackageRef) -> PathBuf {
         .collect::<String>()
         .to_lowercase();
 
-    let store_dir = root(ctx)
+    root(ctx)
         .join(prefix)
         .join(package.id.as_str())
-        .join(package.version.to_string());
-
-    store_dir
+        .join(package.version.to_string())
 }
 
 pub fn entries(ctx: &Context) -> impl Iterator<Item = PathBuf> {
@@ -33,7 +31,7 @@ pub fn entries(ctx: &Context) -> impl Iterator<Item = PathBuf> {
         .into_iter()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.file_type().is_dir())
-        .map(|entry| entry.into_path())
+        .map(walkdir::DirEntry::into_path)
 }
 
 pub fn unused_entries(ctx: &Context) -> impl Iterator<Item = PathBuf> {

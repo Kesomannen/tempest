@@ -7,7 +7,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead};
 use tracing::{debug, info, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
-use crate::{Context, Result, schema::ThunderstoreSchema};
+use crate::{Context, Result, profile::Profile, schema::ThunderstoreSchema};
 
 #[derive(Debug, clap::Parser)]
 #[command(about = "Launch the game with the current profile", alias = "run")]
@@ -29,7 +29,7 @@ impl super::Command for LaunchCommand {
 
         info!("launching {} with {}", game_name, platform.name());
 
-        let mut command = make_command(profile, loader, platform)?;
+        let mut command = make_command(&profile, &*loader, &platform)?;
 
         debug!(?command, "launch command built");
 
@@ -44,7 +44,7 @@ impl super::Command for LaunchCommand {
         let span = tracing::info_span!("launch", %game_name);
         span.pb_set_style(&ProgressStyle::default_spinner());
         span.pb_set_message("waiting for game process to exit...");
-        let _enter = span.enter();
+        let enter = span.enter();
 
         let mut command = tokio::process::Command::from(command);
         let mut child = command.spawn()?;
@@ -56,7 +56,7 @@ impl super::Command for LaunchCommand {
 
         let status = child.wait().await?;
 
-        drop(_enter);
+        drop(enter);
 
         if status.success() {
             info!("game process exited successfully");
@@ -71,11 +71,7 @@ impl super::Command for LaunchCommand {
     }
 }
 
-fn make_command(
-    profile: crate::profile::Profile,
-    loader: Box<dyn Loader>,
-    platform: Platform,
-) -> Result<Command> {
+fn make_command(profile: &Profile, loader: &dyn Loader, platform: &Platform) -> Result<Command> {
     let launch_ctx = platform
         .create_launch_context(profile.path_utf8(), None)
         .context("failed to create launch context")?;

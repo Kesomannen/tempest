@@ -27,9 +27,9 @@ impl Profile {
     }
 
     pub fn create(path: impl Into<PathBuf>, manifest: Manifest) -> Result<Self> {
-        const GIT_IGNORE: &str = r##"# tempest profile state
+        const GIT_IGNORE: &str = r"# tempest profile state
 /_state
-"##;
+";
 
         let path = path.into();
         let lockfile = Lockfile::default();
@@ -150,7 +150,7 @@ impl Profile {
     }
 
     pub async fn resolve_and_sync(&mut self, ctx: &Context, update: bool) -> Result {
-        self.resolve_and_update_lockfile(&ctx, update).await?;
+        self.resolve_and_update_lockfile(ctx, update).await?;
         self.sync(ctx).await?;
 
         Ok(())

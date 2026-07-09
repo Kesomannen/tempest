@@ -8,6 +8,7 @@ use crate::{Context, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     pub auto_fetch: AutoFetch,
 }
@@ -53,14 +54,6 @@ impl Config {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            auto_fetch: AutoFetch::default(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AutoFetch {
@@ -72,7 +65,7 @@ impl Default for AutoFetch {
     fn default() -> Self {
         Self {
             enabled: false,
-            interval: HumanDuration(std::time::Duration::from_secs(60 * 60 * 24)), // 1 day
+            interval: HumanDuration(std::time::Duration::from_hours(24)), // 1 day
         }
     }
 }

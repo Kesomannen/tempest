@@ -55,7 +55,7 @@ impl super::Command for ExportCommand {
             let span = tracing::info_span!("upload_profile");
             span.pb_set_style(&tracing_indicatif::style::ProgressStyle::default_spinner());
             span.pb_set_message("uploading profile to Thunderstore...");
-            let _enter = span.enter();
+            let enter = span.enter();
 
             let key = ctx
                 .thunderstore
@@ -63,7 +63,7 @@ impl super::Command for ExportCommand {
                 .await
                 .context("error while uploading profile")?;
 
-            drop(_enter);
+            drop(enter);
 
             info!("uploaded profile to Thunderstore with key: {key}");
         }
@@ -91,7 +91,7 @@ impl ExportCommand {
             })
             .map(|package| {
                 let ident = package.ref_.id.clone().into_ts_ident()?;
-                let version = package.ref_.version.clone();
+                let version = package.ref_.version;
 
                 Ok(r2z::Mod::new(ident, version, true))
             })

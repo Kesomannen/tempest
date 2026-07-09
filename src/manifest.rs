@@ -158,12 +158,12 @@ impl Mod {
         };
 
         let source = source
-            .or(guessed_source.map(|s| s.to_string()))
+            .or(guessed_source.map(ToString::to_string))
             .unwrap_or_else(|| Self::DEFAULT_REGISTRY.to_string());
 
         let mut dep = Dependency::new(package_id, version_range, source);
         if let Some(metadata) = registry_metadata {
-            dep = dep.with_registry_metadata(metadata)
+            dep = dep.with_registry_metadata(metadata);
         }
         dep
     }

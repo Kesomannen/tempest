@@ -100,31 +100,26 @@ impl super::Command for ImportCommand {
             }
         }
 
-        let mut profile = match existing_profile {
-            Some(mut existing) => {
-                Self::handle_existing(&mut existing, self.merge, mods)?;
+        let mut profile = if let Some(mut existing) = existing_profile {
+            Self::handle_existing(&mut existing, self.merge, mods)?;
 
-                if game != existing.game() {
-                    warn!(
-                        "imported profile game '{}' does not match existing profile game '{}'",
-                        game,
-                        existing.game()
-                    );
-                }
-
-                existing
+            if game != existing.game() {
+                warn!(
+                    "imported profile game '{}' does not match existing profile game '{}'",
+                    game,
+                    existing.game()
+                );
             }
-            None => {
-                if self.merge {
-                    warn!(
-                        "merge option specified but no existing profile found, creating new profile"
-                    );
-                }
 
-                let manifest = Manifest::new(ProfileInfo::new(game), Mods::new(mods));
-
-                Profile::create(path, manifest)?
+            existing
+        } else {
+            if self.merge {
+                warn!("merge option specified but no existing profile found, creating new profile");
             }
+
+            let manifest = Manifest::new(ProfileInfo::new(game), Mods::new(mods));
+
+            Profile::create(path, manifest)?
         };
 
         profile.resolve_and_sync(ctx, false).await?;
@@ -240,7 +235,7 @@ impl ImportCommand {
                     .get(&url)
                     .send()
                     .await
-                    .and_then(|response| response.error_for_status())
+                    .and_then(reqwest::Response::error_for_status)
                     .context("error downloading profile")?
                     .bytes()
                     .await?
@@ -258,7 +253,7 @@ impl Type {
             Some(Type::Thunderstore)
         } else if PathBuf::from(source).exists() {
             Some(Type::Local)
-        } else if source.chars().all(|c| c.is_alphanumeric()) {
+        } else if source.chars().all(char::is_alphanumeric) {
             Some(Type::Gale)
         } else {
             None

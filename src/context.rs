@@ -17,6 +17,8 @@ pub struct Context {
 }
 
 impl Context {
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         http: reqwest::Client,
         thunderstore: thunderstore::Client,

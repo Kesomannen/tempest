@@ -43,9 +43,7 @@ impl ThunderstoreSchema {
     pub fn make_platform(&self, game: &str) -> Result<loadsmith::Platform> {
         let distribution = self
             .game(game)?
-            .distributions
-            .iter()
-            .next()
+            .distributions.first()
             .context("no distribution found for game")?;
 
         loadsmith::thunderstore::distribution_into_platform(distribution.clone())?

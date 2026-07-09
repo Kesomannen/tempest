@@ -111,7 +111,7 @@ async fn download_uncached_packages(
         .map(|package| {
             // Stage 1: async download only. No blocking CPU work here.
             async move {
-                let bytes = download(&package, &ctx)
+                let bytes = download(&package, ctx)
                     .await
                     .with_context(|| format!("error while downloading {}", package.ref_.id))?;
 

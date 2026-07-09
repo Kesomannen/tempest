@@ -30,7 +30,7 @@ impl super::Command for AddCommand {
 
         let mut resolved = Vec::new();
         for package in &self.packages {
-            let Some((id, version_range)) = self.resolve(package, ctx, &profile).await? else {
+            let Some((id, version_range)) = self.resolve(package, ctx, &profile)? else {
                 continue;
             };
 
@@ -60,7 +60,7 @@ impl super::Command for AddCommand {
 }
 
 impl AddCommand {
-    async fn resolve(
+    fn resolve(
         &self,
         s: &str,
         ctx: &Context,
@@ -99,31 +99,28 @@ impl AddCommand {
         };
 
         if !self.upgrade
-            && version.as_ref().is_none_or(|range| range.is_any())
+            && version.as_ref().is_none_or(VersionRange::is_any)
             && profile.manifest.mods.get(&id).is_some()
         {
             debug!("package {id} is already in the manifest at a compatible version, skipping");
             return Ok(None);
         }
 
-        let version_range = match version {
-            Some(version) => {
-                let any_matches = versions.iter().any(|v| version.matches(&v.version));
-                ensure!(
-                    any_matches,
-                    "no versions of {id} match the specified version range {version}"
-                );
+        let version_range = if let Some(version) = version {
+            let any_matches = versions.iter().any(|v| version.matches(&v.version));
+            ensure!(
+                any_matches,
+                "no versions of {id} match the specified version range {version}"
+            );
 
-                version
-            }
-            None => {
-                let latest = versions
-                    .into_iter()
-                    .max_by(|a, b| a.version.cmp(&b.version))
-                    .expect("version info should not be empty");
+            version
+        } else {
+            let latest = versions
+                .into_iter()
+                .max_by(|a, b| a.version.cmp(&b.version))
+                .expect("version info should not be empty");
 
-                VersionRange::Exact(latest.version)
-            }
+            VersionRange::Exact(latest.version)
         };
 
         Ok(Some((id, version_range)))
