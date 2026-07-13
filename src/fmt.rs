@@ -12,20 +12,20 @@ pub fn log_lockfile_diff(diff: &Diff<LockedPackage, LockedPackage>) {
     }
 
     for package in &diff.removed {
-        info!("removed {}", package.ref_.id);
+        info!("removed {}", package.ref_.id());
     }
 
     for (old, new) in &diff.changed {
-        if old.ref_.version < new.ref_.version {
-            info!(
-                "upgraded {}: {} -> {}",
-                old.ref_.id, old.ref_.version, new.ref_.version
-            );
-        } else {
-            info!(
-                "downgraded {}: {} -> {}",
-                old.ref_.id, old.ref_.version, new.ref_.version
-            );
-        }
+        info!(
+            "{} {}: {} -> {}",
+            if old.ref_.version() < new.ref_.version() {
+                "upgraded"
+            } else {
+                "downgraded"
+            },
+            old.ref_.id(),
+            old.ref_.version(),
+            new.ref_.version()
+        )
     }
 }

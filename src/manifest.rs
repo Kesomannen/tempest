@@ -18,14 +18,15 @@ pub struct ProfileInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Mods(BTreeMap<PackageId, Mod>);
+pub struct Mods(BTreeMap<PackageId, ModSpec>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Mod {
+pub enum ModSpec {
     Simple(VersionRange),
     Full {
-        version: VersionRange,
+        #[serde(default)]
+        version: Option<VersionRange>,
         #[serde(default)]
         source: Option<String>,
         #[serde(flatten)]
@@ -46,19 +47,19 @@ impl ProfileInfo {
 }
 
 impl Mods {
-    pub fn new(mods: BTreeMap<PackageId, Mod>) -> Self {
+    pub fn new(mods: BTreeMap<PackageId, ModSpec>) -> Self {
         Self(mods)
     }
 
-    pub fn insert(&mut self, package_id: PackageId, mod_: Mod) {
+    pub fn insert(&mut self, package_id: PackageId, mod_: ModSpec) {
         self.0.insert(package_id, mod_);
     }
 
-    pub fn get(&self, package_id: &PackageId) -> Option<&Mod> {
+    pub fn get(&self, package_id: &PackageId) -> Option<&ModSpec> {
         self.0.get(package_id)
     }
 
-    pub fn remove(&mut self, package_id: &PackageId) -> Option<Mod> {
+    pub fn remove(&mut self, package_id: &PackageId) -> Option<ModSpec> {
         self.0.remove(package_id)
     }
 
@@ -68,7 +69,10 @@ impl Mods {
             .map(|(package_id, mod_)| mod_.into_dependency(package_id))
     }
 
-    pub fn get_or_search<'a>(&'a self, name: &'a PackageId) -> Result<(&'a PackageId, &'a Mod)> {
+    pub fn get_or_search<'a>(
+        &'a self,
+        name: &'a PackageId,
+    ) -> Result<(&'a PackageId, &'a ModSpec)> {
         if let Some(mod_) = self.0.get(name) {
             Ok((name, mod_))
         } else {
@@ -76,7 +80,7 @@ impl Mods {
         }
     }
 
-    pub fn search_one(&self, query: &str) -> Result<(&PackageId, &Mod)> {
+    pub fn search_one(&self, query: &str) -> Result<(&PackageId, &ModSpec)> {
         let mut results = self.search(query);
 
         match results.next() {
@@ -91,7 +95,7 @@ impl Mods {
         }
     }
 
-    pub fn search(&self, query: &str) -> impl Iterator<Item = (&PackageId, &Mod)> {
+    pub fn search(&self, query: &str) -> impl Iterator<Item = (&PackageId, &ModSpec)> {
         let lower_query = query.to_lowercase();
 
         self.0.iter().filter(move |(package_id, _)| {
@@ -104,7 +108,7 @@ impl Mods {
     }
 }
 
-impl Mod {
+impl ModSpec {
     const DEFAULT_REGISTRY: &str = "thunderstore";
     const LOCAL_REGISTRY: &str = "local";
 
@@ -114,12 +118,12 @@ impl Mod {
 
     pub fn with_source(self, source: impl Into<String>) -> Self {
         match self {
-            Mod::Simple(range) => Self::Full {
-                version: range,
+            ModSpec::Simple(range) => Self::Full {
+                version: Some(range),
                 source: Some(source.into()),
                 registry_metadata: serde_json::Value::Null,
             },
-            Mod::Full {
+            ModSpec::Full {
                 version,
                 registry_metadata,
                 ..
@@ -131,27 +135,21 @@ impl Mod {
         }
     }
 
-    // pub fn version_range(&self) -> &VersionRange {
-    //     match self {
-    //         Mod::Simple(range) => range,
-    //         Mod::Full { version, .. } => version,
-    //     }
-    // }
-
     fn into_dependency(self, package_id: PackageId) -> Dependency {
         let guessed_source = self.guess_source();
 
         let (version_range, source, registry_metadata) = match self {
-            Mod::Simple(range) => (range, None, None),
-            Mod::Full {
+            ModSpec::Simple(range) => (range, None, None),
+            ModSpec::Full {
                 version,
                 source,
                 registry_metadata,
             } => (
-                version,
+                version.unwrap_or(VersionRange::Any),
                 source,
                 match registry_metadata {
                     serde_json::Value::Object(map) if map.is_empty() => None,
+                    serde_json::Value::Null => None,
                     _ => Some(registry_metadata),
                 },
             ),
@@ -169,7 +167,7 @@ impl Mod {
     }
 
     fn guess_source(&self) -> Option<&'static str> {
-        if let Mod::Full {
+        if let ModSpec::Full {
             registry_metadata: serde_json::Value::Object(map),
             ..
         } = self

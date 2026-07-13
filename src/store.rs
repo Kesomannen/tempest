@@ -11,7 +11,7 @@ pub fn contains(ctx: &Context, package: &PackageRef) -> bool {
 
 pub fn package_dir(ctx: &Context, package: &PackageRef) -> PathBuf {
     let prefix = package
-        .id
+        .id()
         .as_str()
         .chars()
         .take(2)
@@ -20,8 +20,8 @@ pub fn package_dir(ctx: &Context, package: &PackageRef) -> PathBuf {
 
     root(ctx)
         .join(prefix)
-        .join(package.id.as_str())
-        .join(package.version.to_string())
+        .join(package.id().as_str())
+        .join(package.version().to_string())
 }
 
 pub fn entries(ctx: &Context) -> impl Iterator<Item = PathBuf> {

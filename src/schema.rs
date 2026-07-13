@@ -1,4 +1,4 @@
-use anyhow::Context as _;
+use anyhow::{Context as _, anyhow};
 use loadsmith::PackageRef;
 use thunderstore::models::schema;
 
@@ -10,7 +10,7 @@ pub struct ThunderstoreSchema {
 }
 
 impl ThunderstoreSchema {
-    pub async fn fetch(ctx: &Context) -> Result<Self> {
+    pub async fn load(ctx: &Context) -> Result<Self> {
         let schema = ctx
             .thunderstore
             .get_schema("dev")
@@ -21,7 +21,10 @@ impl ThunderstoreSchema {
     }
 
     pub fn game(&self, game: &str) -> Result<&schema::Game> {
-        self.inner.games.get(game).context("unknown game")
+        self.inner
+            .games
+            .get(game)
+            .ok_or_else(|| anyhow!("unknown game: {}", game))
     }
 
     pub fn make_loader(&self, game: &str) -> Result<Box<dyn loadsmith::Loader>> {
@@ -34,26 +37,36 @@ impl ThunderstoreSchema {
             .context("no r2modman config found for game")?;
 
         let loader = loadsmith::thunderstore::r2_config_to_loader(config)
-            .context("failed to convert r2modman config to loader")?
-            .with_context(|| format!("unsupported mod loader: {:?}", config.package_loader))?;
+            .context("failed to convert r2modman config to loader")?;
 
         Ok(loader)
     }
 
-    pub fn make_platform(&self, game: &str) -> Result<loadsmith::Platform> {
-        let distribution = self
-            .game(game)?
-            .distributions.first()
-            .context("no distribution found for game")?;
+    pub fn make_platforms(&self, game: &str) -> Result<Vec<loadsmith::Platform>> {
+        self.game(game)?
+            .distributions
+            .iter()
+            .cloned()
+            .map(|dist| {
+                loadsmith::thunderstore::distribution_into_platform(dist)
+                    .context("failed to convert distribution to platform")
+            })
+            .collect()
+    }
 
-        loadsmith::thunderstore::distribution_into_platform(distribution.clone())?
-            .context("unsupported distribution")
+    pub fn make_platform(&self, game: &str) -> Result<loadsmith::Platform> {
+        self.make_platforms(game)?
+            .into_iter()
+            .next()
+            .context("no platforms found for game")
     }
 
     pub fn is_mod_loader(&self, pkg: &PackageRef) -> bool {
-        self.inner
-            .modloader_packages
-            .iter()
-            .any(|loader_pkg| loader_pkg.package_id.as_str() == pkg.id.as_str())
+        self.inner.modloader_packages.iter().any(|loader_pkg| {
+            loader_pkg
+                .package_id
+                .as_str()
+                .eq_ignore_ascii_case(pkg.id().as_str())
+        })
     }
 }

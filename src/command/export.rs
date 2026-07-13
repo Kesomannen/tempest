@@ -84,14 +84,14 @@ impl ExportCommand {
                 } else {
                     warn!(
                         "excluding non-thunderstore package {} from export",
-                        package.ref_.id
+                        package.ref_.id()
                     );
                     false
                 }
             })
             .map(|package| {
-                let ident = package.ref_.id.clone().into_ts_ident()?;
-                let version = package.ref_.version;
+                let ident = package.ref_.id().clone().into_ts_ident()?;
+                let version = package.ref_.version().clone();
 
                 Ok(r2z::Mod::new(ident, version, true))
             })

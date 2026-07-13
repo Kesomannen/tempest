@@ -5,8 +5,8 @@ edition = "2024"
 
 [dependencies]
 loadsmith = { path = "../loadsmith/crates/loadsmith" }
-thunderstore = { path = "../thunderstore-client" }
 
+thunderstore = "0.6.0"
 dialoguer = "0.12.0"
 tabled = "0.21.0"
 clap = { version = "4.6.1", features = ["derive"] }
@@ -34,6 +34,7 @@ termcolor = "1.4.1"
 colored = "3.1.1"
 walkdir = "2.5.0"
 humantime = "2.4.0"
+rustls = "0.23.41"
 
 [profile.release]
 opt-level = "s"

@@ -1,6 +1,8 @@
 use anyhow::Context;
 use clap::Parser;
-use loadsmith::{LocalRegistry, RegistrySet, ThunderstoreRegistry, thunderstore::SqliteIndex};
+use loadsmith::{
+    GithubRegistry, LocalRegistry, RegistrySet, ThunderstoreRegistry, thunderstore::SqliteIndex,
+};
 use tracing::{debug, error, warn};
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
@@ -48,6 +50,10 @@ async fn try_main() -> anyhow::Result<()> {
         warn!("RUST_LOG is set, verbose flag will be ignored");
     }
 
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("failed to install rustls default provider");
+
     let ctx = create_context(&cli)?;
     cli.run(&ctx).await
 }
@@ -73,6 +79,7 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
         "thunderstore",
         ThunderstoreRegistry::sqlite(thunderstore.clone(), index.clone()),
     );
+    registry_set.add("github", GithubRegistry::default());
 
     let working_dir = std::env::current_dir().context("failed to determine working directory")?;
 

@@ -1,6 +1,7 @@
 use std::process::{Command, Stdio};
 
 use anyhow::Context as _;
+use camino::Utf8PathBuf;
 use colored::Colorize;
 use loadsmith::{Loader, Platform};
 use tokio::io::{AsyncBufReadExt, AsyncRead};
@@ -12,14 +13,16 @@ use crate::{Context, Result, profile::Profile, schema::ThunderstoreSchema};
 #[derive(Debug, clap::Parser)]
 #[command(about = "Launch the game with the current profile", alias = "run")]
 pub struct LaunchCommand {
+    game_path: Option<Utf8PathBuf>,
+
     #[arg(long, help = "Perform a dry run without launching the game")]
-    pub dry_run: bool,
+    dry_run: bool,
 }
 
 impl super::Command for LaunchCommand {
     async fn run(self, ctx: &Context) -> Result<()> {
         let profile = ctx.read_profile()?;
-        let schema = ThunderstoreSchema::fetch(ctx).await?;
+        let schema = ThunderstoreSchema::load(ctx).await?;
 
         let game = schema.game(profile.game())?;
         let loader = schema.make_loader(profile.game())?;
@@ -29,7 +32,7 @@ impl super::Command for LaunchCommand {
 
         info!("launching {} with {}", game_name, platform.name());
 
-        let mut command = make_command(&profile, &*loader, &platform)?;
+        let mut command = make_command(&profile, &*loader, &platform, self.game_path)?;
 
         debug!(?command, "launch command built");
 
@@ -71,10 +74,17 @@ impl super::Command for LaunchCommand {
     }
 }
 
-fn make_command(profile: &Profile, loader: &dyn Loader, platform: &Platform) -> Result<Command> {
+fn make_command(
+    profile: &Profile,
+    loader: &dyn Loader,
+    platform: &Platform,
+    game_path: Option<Utf8PathBuf>,
+) -> Result<Command> {
     let launch_ctx = platform
-        .create_launch_context(profile.path_utf8(), None)
+        .create_launch_context(profile.path_utf8(), game_path)
         .context("failed to create launch context")?;
+
+    debug!("using game path `{}`", launch_ctx.game_path());
 
     let mut command = platform
         .create_launch_command()?
@@ -85,6 +95,7 @@ fn make_command(profile: &Profile, loader: &dyn Loader, platform: &Platform) -> 
         .context("error generating launch arguments")?;
 
     args.apply(&mut command);
+
     loader
         .prepare_launch(&launch_ctx)
         .context("error preparing for launch")?;

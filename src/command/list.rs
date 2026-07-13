@@ -15,12 +15,12 @@ impl super::Command for ListCommand {
         builder.push_record(vec!["package", "version", "source", "transitive"]);
 
         let mut sorted_packages = profile.lockfile.packages().iter().collect::<Vec<_>>();
-        sorted_packages.sort_by(|a, b| a.ref_.id.cmp(&b.ref_.id));
+        sorted_packages.sort_by(|a, b| a.ref_.id().cmp(&b.ref_.id()));
 
         for package in sorted_packages {
             builder.push_record(vec![
-                package.ref_.id.as_str(),
-                &package.ref_.version.to_string(),
+                package.ref_.id().as_str(),
+                &package.ref_.version().to_string(),
                 package.source.as_str(),
                 if package.transitive { "x" } else { "" },
             ]);

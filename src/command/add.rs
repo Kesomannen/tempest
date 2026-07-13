@@ -43,7 +43,7 @@ impl super::Command for AddCommand {
         }
 
         for (id, version_range) in resolved {
-            let mut mod_ = crate::manifest::Mod::new(version_range);
+            let mut mod_ = crate::manifest::ModSpec::new(version_range);
             if let Some(source) = &self.source {
                 mod_ = mod_.with_source(source);
             }

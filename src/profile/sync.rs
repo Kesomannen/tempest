@@ -25,9 +25,9 @@ pub async fn sync_profile(ctx: &Context, profile: &mut Profile) -> Result {
 
     if !to_remove.is_empty() {
         for package in to_remove {
-            debug!("uninstalling {}", package.ref_.id);
+            debug!("uninstalling {}", package.ref_.id());
 
-            profile.state.uninstall(&package.ref_.id)?;
+            profile.state.uninstall(&package.ref_.id())?;
 
             profile.write_state()?;
         }
@@ -48,7 +48,7 @@ async fn install_packages(
     packages.sort_by_key(|pkg| pkg.size.unwrap_or(0));
     packages.reverse();
 
-    let schema = ThunderstoreSchema::fetch(ctx).await.map(Arc::new)?;
+    let schema = ThunderstoreSchema::load(ctx).await.map(Arc::new)?;
     let loader: Arc<dyn Loader> = schema.make_loader(profile.game()).map(Arc::from)?;
 
     download_uncached_packages(schema.clone(), loader.clone(), &packages, &ctx).await?;
@@ -113,7 +113,7 @@ async fn download_uncached_packages(
             async move {
                 let bytes = download(&package, ctx)
                     .await
-                    .with_context(|| format!("error while downloading {}", package.ref_.id))?;
+                    .with_context(|| format!("error while downloading {}", package.ref_.id()))?;
 
                 Ok::<_, anyhow::Error>((package, bytes))
             }
@@ -137,7 +137,7 @@ async fn download_uncached_packages(
                         .context("failed to create package store directory")?;
 
                     loadsmith::extract(Cursor::new(bytes), &package.ref_, ruleset, &target)
-                        .with_context(|| format!("error while extracting {}", package.ref_.id))?;
+                        .with_context(|| format!("error while extracting {}", package.ref_.id()))?;
 
                     Ok::<_, anyhow::Error>(package)
                 })
@@ -147,7 +147,7 @@ async fn download_uncached_packages(
         })
         .buffer_unordered(EXTRACT_CONCURRENCY)
         .try_for_each(|package| {
-            debug!("finished {}", package.ref_.id);
+            debug!("finished {}", package.ref_.id());
             span.pb_inc(1);
 
             async { Ok(()) }
@@ -168,14 +168,14 @@ async fn download(package: &LockedPackage, ctx: &Context) -> Result<Vec<u8>> {
             .progress_chars("=>-"),
     );
 
-    package_span.pb_set_message(package.ref_.id.as_str());
+    package_span.pb_set_message(package.ref_.id().as_str());
     if let Some(size) = package.size {
         package_span.pb_set_length(size);
     }
 
     let _package_enter = package_span.enter();
 
-    debug!("downloading {}", package.ref_.id);
+    debug!("downloading {}", package.ref_.id());
 
     let mut vec = Vec::with_capacity(package.size.unwrap_or(0) as usize);
     if let Some(path) = package.url.strip_prefix("file://") {

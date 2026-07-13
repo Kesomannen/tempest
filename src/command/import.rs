@@ -67,7 +67,7 @@ impl super::Command for ImportCommand {
             .map(|m| {
                 (
                     PackageId::from_ts_ident(m.name),
-                    manifest::Mod::new(VersionRange::exact(m.version)),
+                    manifest::ModSpec::new(VersionRange::exact(m.version)),
                 )
             })
             .collect::<BTreeMap<_, _>>();
@@ -138,7 +138,7 @@ impl ImportCommand {
     fn handle_existing(
         existing: &mut Profile,
         merge: bool,
-        mods: BTreeMap<PackageId, manifest::Mod>,
+        mods: BTreeMap<PackageId, manifest::ModSpec>,
     ) -> Result {
         if merge {
             debug!("merging with existing profile");

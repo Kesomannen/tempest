@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::bail;
-use tracing::{debug, info};
+use tracing::{debug, info, trace, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
 use crate::{Context, Result};
@@ -50,11 +50,44 @@ impl super::Command for CleanCommand {
         for path in to_remove {
             debug!("removing package store directory `{}`", path.display());
 
-            tokio::fs::remove_dir_all(&path).await?;
+            tokio::task::spawn_blocking(move || {
+                std::fs::remove_dir_all(&path)?;
+                remove_empty_parents(path)
+            })
+            .await??;
 
             span.pb_inc(1);
         }
 
         Ok(())
     }
+}
+
+fn remove_empty_parents(path: impl Into<PathBuf>) -> std::io::Result<()> {
+    use std::io::ErrorKind;
+
+    let mut path = path.into();
+
+    while path.pop() {
+        match std::fs::remove_dir(&path) {
+            Ok(_) => {
+                trace!(path = %path.display(), "removed empty directory");
+            }
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    ErrorKind::DirectoryNotEmpty | ErrorKind::NotFound
+                ) =>
+            {
+                break;
+            }
+            Err(err) if err.kind() == ErrorKind::PermissionDenied => {
+                warn!(path = %path.display(), "permission denied while removing empty directories");
+                break;
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
+
+    Ok(())
 }
