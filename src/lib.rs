@@ -15,6 +15,7 @@ mod util;
 
 pub use config::Config;
 pub use context::Context;
+pub use store::PackageStore;
 
 // type Error = anyhow::Error;
 type Result<T = ()> = anyhow::Result<T>;

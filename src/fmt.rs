@@ -16,6 +16,11 @@ pub fn log_lockfile_diff(diff: &Diff<LockedPackage, LockedPackage>) {
     }
 
     for (old, new) in &diff.changed {
+        if old.ref_.version() == new.ref_.version() {
+            info!("{} changed", old.ref_.id());
+            continue;
+        }
+
         info!(
             "{} {}: {} -> {}",
             if old.ref_.version() < new.ref_.version() {

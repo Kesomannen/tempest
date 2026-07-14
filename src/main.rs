@@ -8,7 +8,8 @@ use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 const DEFAULT_DIRECTIVE: &str = "info";
-const VERBOSE_DIRECTIVE: &str = "trace,h2=info,hyper_util=info,reqwest=info,globset=info";
+const VERBOSE_DIRECTIVE: &str =
+    "trace,h2=info,hyper_util=info,reqwest=info,globset=info,rustls=info";
 
 #[tokio::main]
 async fn main() {
@@ -55,6 +56,9 @@ async fn try_main() -> anyhow::Result<()> {
         .expect("failed to install rustls default provider");
 
     let ctx = create_context(&cli)?;
+
+    // trace!(ctx = %format!("{ctx:#?}"), "created context");
+
     cli.run(&ctx).await
 }
 
@@ -65,7 +69,10 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
 
     std::fs::create_dir_all(&home_dir).context("failed to create home directory")?;
 
-    let http = reqwest::Client::new();
+    let http = reqwest::Client::builder()
+        .user_agent(format!("tempest/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .context("failed to create HTTP client")?;
     let thunderstore = thunderstore::Client::builder()
         .with_client(http.clone())
         .build()
@@ -88,6 +95,8 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
         tempest::Config::default()
     });
 
+    let store = tempest::PackageStore::new(home_dir.join("store"));
+
     Ok(tempest::Context::new(
         http,
         thunderstore,
@@ -97,5 +106,6 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
         home_dir,
         cli.locked,
         config,
+        store,
     ))
 }

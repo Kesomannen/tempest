@@ -134,7 +134,7 @@ impl AddCommand {
 
                 let confirmed = dialoguer::Confirm::new()
                     .with_prompt(format!(
-                        "package with name '{name}' was not found, did you mean {result}?",
+                        "found package with id {result}, is this the package you meant?",
                     ))
                     .default(true)
                     .interact()?;

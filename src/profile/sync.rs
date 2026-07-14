@@ -1,7 +1,6 @@
 use std::{
     fs::{self, File},
     io::{Cursor, Read},
-    sync::Arc,
 };
 
 use anyhow::Context as _;
@@ -10,7 +9,7 @@ use loadsmith::{InstallRuleset, Loader, LockedPackage, PackageRef};
 use tracing::{debug, info};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
-use crate::{Context, Result, profile::Profile, schema::ThunderstoreSchema, store};
+use crate::{Context, Result, profile::Profile, schema::ThunderstoreSchema};
 
 pub async fn sync_profile(ctx: &Context, profile: &mut Profile) -> Result {
     let diff = profile.state.diff_lockfile(&profile.lockfile);
@@ -25,22 +24,22 @@ pub async fn sync_profile(ctx: &Context, profile: &mut Profile) -> Result {
 
     if !to_remove.is_empty() {
         for package in to_remove {
-            debug!("uninstalling {}", package.ref_.id());
+            debug!("uninstalling {}", package.ref_().id());
 
-            profile.state.uninstall(&package.ref_.id())?;
+            profile.state.uninstall(&package.ref_().id())?;
 
             profile.write_state()?;
         }
     }
 
     if !to_add.is_empty() {
-        install_packages(to_add, ctx, profile).await?;
+        donwload_and_install(to_add, ctx, profile).await?;
     }
 
     Ok(())
 }
 
-async fn install_packages(
+async fn donwload_and_install(
     mut packages: Vec<LockedPackage>,
     ctx: &Context,
     profile: &mut Profile,
@@ -48,26 +47,37 @@ async fn install_packages(
     packages.sort_by_key(|pkg| pkg.size.unwrap_or(0));
     packages.reverse();
 
-    let schema = ThunderstoreSchema::load(ctx).await.map(Arc::new)?;
-    let loader: Arc<dyn Loader> = schema.make_loader(profile.game()).map(Arc::from)?;
+    download_uncached_packages(&packages, ctx).await?;
 
-    download_uncached_packages(schema.clone(), loader.clone(), &packages, &ctx).await?;
+    let res = install_packages(packages, ctx, profile).await;
 
+    profile.write_state()?;
+
+    res
+}
+
+async fn install_packages(
+    packages: Vec<LockedPackage>,
+    ctx: &Context,
+    profile: &mut Profile,
+) -> Result {
     let span = tracing::info_span!("install_packages");
     span.pb_set_style(&ProgressStyle::default_spinner());
     span.pb_set_message("installing packages...");
 
     let _enter = span.enter();
+    let schema = ThunderstoreSchema::load(ctx).await?;
+    let loader = schema.make_loader(profile.game())?;
 
     for package in packages {
+        debug!("installing {}", package.ref_.id());
+
         let ruleset = ruleset_for_package(&schema, &*loader, &package.ref_);
-        let store_dir = store::package_dir(ctx, &package.ref_);
+        let store_dir = ctx.store.path_of(&package.ref_);
         profile
             .state
-            .install(package.ref_, ruleset, &store_dir, false)
+            .install(package.ref_, ruleset, &store_dir, false, package.checksum)
             .context("failed to install package")?;
-
-        profile.write_state()?;
 
         span.pb_inc(1);
     }
@@ -83,15 +93,10 @@ const DOWNLOAD_CONCURRENCY: usize = 4;
 /// Bounded by CPU cores, kept separate so a slow extract doesn't stall downloads.
 const EXTRACT_CONCURRENCY: usize = 4;
 
-async fn download_uncached_packages(
-    schema: Arc<ThunderstoreSchema>,
-    loader: Arc<dyn Loader>,
-    packages: &[LockedPackage],
-    ctx: &&Context,
-) -> Result {
+async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -> Result {
     let to_download: Vec<LockedPackage> = packages
         .iter()
-        .filter(|pkg| !store::contains(ctx, &pkg.ref_))
+        .filter(|pkg| !ctx.store.contains(&pkg.ref_))
         .cloned()
         .collect();
 
@@ -120,23 +125,18 @@ async fn download_uncached_packages(
         })
         .buffer_unordered(DOWNLOAD_CONCURRENCY)
         .map(|result| {
-            let schema = schema.clone();
-            let loader = loader.clone();
-
             // Stage 2: extraction, moved to a blocking thread pool so it
             // doesn't hog the async runtime while other downloads are in flight.
             async move {
                 let (package, bytes) = result?;
 
-                let target = store::package_dir(ctx, &package.ref_);
+                let target = ctx.store.path_of(&package.ref_);
 
                 tokio::task::spawn_blocking(move || {
-                    let ruleset = ruleset_for_package(&schema, &*loader, &package.ref_);
-
                     fs::create_dir_all(&target)
                         .context("failed to create package store directory")?;
 
-                    loadsmith::extract(Cursor::new(bytes), &package.ref_, ruleset, &target)
+                    loadsmith::extract(Cursor::new(bytes), &target)
                         .with_context(|| format!("error while extracting {}", package.ref_.id()))?;
 
                     Ok::<_, anyhow::Error>(package)

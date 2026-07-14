@@ -2,7 +2,7 @@ use std::{cell::RefCell, path::PathBuf};
 
 use loadsmith::{RegistrySet, thunderstore::SqliteIndex};
 
-use crate::{Config, Result, profile::Profile};
+use crate::{Config, Result, profile::Profile, store::PackageStore};
 
 #[derive(Debug)]
 pub struct Context {
@@ -14,6 +14,7 @@ pub struct Context {
     pub(crate) home_dir: PathBuf,
     pub(crate) locked: bool,
     pub(crate) config: RefCell<Config>,
+    pub(crate) store: PackageStore,
 }
 
 impl Context {
@@ -28,6 +29,7 @@ impl Context {
         home_dir: PathBuf,
         locked: bool,
         config: Config,
+        store: PackageStore,
     ) -> Self {
         Self {
             http,
@@ -38,6 +40,7 @@ impl Context {
             home_dir,
             locked,
             config: RefCell::new(config),
+            store,
         }
     }
 
