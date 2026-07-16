@@ -10,15 +10,13 @@ mod index;
 mod manifest;
 mod profile;
 mod schema;
-mod store;
 mod util;
 
 pub use config::Config;
 pub use context::Context;
-pub use store::PackageStore;
 
 // type Error = anyhow::Error;
-type Result<T = ()> = anyhow::Result<T>;
+type Result<T = (), E = anyhow::Error> = std::result::Result<T, E>;
 
 #[derive(Debug, clap::Parser)]
 #[command(version, about, long_about = None)]

@@ -1,6 +1,5 @@
-use std::path::PathBuf;
-
 use anyhow::bail;
+use loadsmith::PackageStoreEntry;
 use tracing::{debug, info};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
@@ -18,10 +17,10 @@ pub struct CleanCommand {
 
 impl super::Command for CleanCommand {
     async fn run(self, ctx: &Context) -> Result<()> {
-        let to_remove: Vec<PathBuf> = if self.force {
-            ctx.store.entries().collect()
+        let to_remove: Vec<PackageStoreEntry> = if self.force {
+            ctx.store.entries().collect::<Result<Vec<_>, _>>()?
         } else {
-            ctx.store.unused_entries().collect()
+            ctx.store.unused_entries().collect::<Result<Vec<_>, _>>()?
         };
 
         if to_remove.is_empty() {
@@ -47,12 +46,12 @@ impl super::Command for CleanCommand {
         span.pb_set_length(to_remove.len() as u64);
         let _enter = span.enter();
 
-        for path in to_remove {
-            debug!("removing package store directory `{}`", path.display());
+        for entry in to_remove {
+            debug!("removing package store entry {entry}");
 
             let store = ctx.store.clone();
 
-            tokio::task::spawn_blocking(move || store.remove(&path)).await??;
+            tokio::task::spawn_blocking(move || store.remove(&entry)).await??;
 
             span.pb_inc(1);
         }

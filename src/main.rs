@@ -9,7 +9,7 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 
 const DEFAULT_DIRECTIVE: &str = "info";
 const VERBOSE_DIRECTIVE: &str =
-    "trace,h2=info,hyper_util=info,reqwest=info,globset=info,rustls=info";
+    "trace,h2=info,hyper_util=info,reqwest=info,globset=info,rustls=info,tower=info";
 
 #[tokio::main]
 async fn main() {
@@ -82,11 +82,11 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
 
     let mut registry_set = RegistrySet::new();
     registry_set.add("local", LocalRegistry::new());
+    registry_set.add("github", GithubRegistry::new());
     registry_set.add(
         "thunderstore",
         ThunderstoreRegistry::sqlite(thunderstore.clone(), index.clone()),
     );
-    registry_set.add("github", GithubRegistry::default());
 
     let working_dir = std::env::current_dir().context("failed to determine working directory")?;
 
@@ -95,7 +95,8 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
         tempest::Config::default()
     });
 
-    let store = tempest::PackageStore::new(home_dir.join("store"));
+    let store = loadsmith::PackageStore::open(home_dir.join("store"))
+        .context("failed to open package store")?;
 
     Ok(tempest::Context::new(
         http,

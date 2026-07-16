@@ -1,8 +1,8 @@
 use std::{cell::RefCell, path::PathBuf};
 
-use loadsmith::{RegistrySet, thunderstore::SqliteIndex};
+use loadsmith::{PackageStore, RegistrySet, thunderstore::SqliteIndex};
 
-use crate::{Config, Result, profile::Profile, store::PackageStore};
+use crate::{Config, Result, profile::Profile};
 
 #[derive(Debug)]
 pub struct Context {

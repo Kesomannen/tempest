@@ -1765,12 +1765,14 @@ dependencies = [
  "loadsmith-install",
  "loadsmith-registry",
  "loadsmith-thunderstore",
+ "loadsmith-util",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "thunderstore",
  "toml",
  "tracing",
+ "walkdir",
 ]
 
 [[package]]

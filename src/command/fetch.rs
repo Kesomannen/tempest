@@ -8,10 +8,13 @@ pub struct FetchCommand {
 
 impl super::Command for FetchCommand {
     async fn run(self, ctx: &Context) -> Result<()> {
-        let game = self.game.map(Result::Ok).unwrap_or_else(|| {
-            let profile = ctx.read_profile()?;
-            Ok(profile.game().to_string())
-        })?;
+        let game = match self.game {
+            Some(game) => game,
+            None => {
+                let profile = ctx.read_profile()?;
+                profile.game().to_string()
+            }
+        };
 
         crate::index::update(ctx, &game).await?;
         Ok(())

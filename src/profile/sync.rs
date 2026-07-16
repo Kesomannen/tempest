@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, File},
+    fs::File,
     io::{Cursor, Read},
 };
 
@@ -73,11 +73,11 @@ async fn install_packages(
         debug!("installing {}", package.ref_.id());
 
         let ruleset = ruleset_for_package(&schema, &*loader, &package.ref_);
-        let store_dir = ctx.store.path_of(&package.ref_);
         profile
             .state
-            .install(package.ref_, ruleset, &store_dir, false, package.checksum)
-            .context("failed to install package")?;
+            .install_from_store(package.into_store_entry(), ruleset, &ctx.store)?;
+
+        profile.write_state()?;
 
         span.pb_inc(1);
     }
@@ -96,7 +96,7 @@ const EXTRACT_CONCURRENCY: usize = 4;
 async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -> Result {
     let to_download: Vec<LockedPackage> = packages
         .iter()
-        .filter(|pkg| !ctx.store.contains(&pkg.ref_))
+        .filter(|pkg| !ctx.store.contains(&pkg.store_entry()))
         .cloned()
         .collect();
 
@@ -130,13 +130,11 @@ async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -
             async move {
                 let (package, bytes) = result?;
 
-                let target = ctx.store.path_of(&package.ref_);
+                let store = ctx.store.clone();
 
                 tokio::task::spawn_blocking(move || {
-                    fs::create_dir_all(&target)
-                        .context("failed to create package store directory")?;
-
-                    loadsmith::extract(Cursor::new(bytes), &target)
+                    store
+                        .add(&package.store_entry(), Cursor::new(bytes))
                         .with_context(|| format!("error while extracting {}", package.ref_.id()))?;
 
                     Ok::<_, anyhow::Error>(package)
