@@ -111,6 +111,7 @@ impl Mods {
 impl ModSpec {
     const DEFAULT_REGISTRY: &str = "thunderstore";
     const LOCAL_REGISTRY: &str = "local";
+    const GITHUB_REGISTRY: &str = "github";
 
     pub fn new(version: impl Into<VersionRange>) -> Self {
         Self::Simple(version.into())
@@ -171,9 +172,14 @@ impl ModSpec {
             registry_metadata: serde_json::Value::Object(map),
             ..
         } = self
-            && map.contains_key("path")
         {
-            return Some(Self::LOCAL_REGISTRY);
+            if map.contains_key("path") {
+                return Some(Self::LOCAL_REGISTRY);
+            }
+
+            if map.contains_key("repo") {
+                return Some(Self::GITHUB_REGISTRY);
+            }
         }
 
         None

@@ -1,12 +1,10 @@
-use std::{
-    fs::File,
-    io::{Cursor, Read},
-};
+use std::io::Cursor;
 
-use anyhow::Context as _;
+use anyhow::{Context as _, bail};
 use futures::{StreamExt, TryStreamExt, stream};
-use loadsmith::{InstallRuleset, Loader, LockedPackage, PackageRef};
-use tracing::{debug, info};
+use loadsmith::{Checksum, InstallRuleset, Loader, LockedPackage, PackageRef};
+use tokio::io::AsyncReadExt;
+use tracing::{debug, info, trace};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
 use crate::{Context, Result, profile::Profile, schema::ThunderstoreSchema};
@@ -44,8 +42,7 @@ async fn donwload_and_install(
     ctx: &Context,
     profile: &mut Profile,
 ) -> Result {
-    packages.sort_by_key(|pkg| pkg.size.unwrap_or(0));
-    packages.reverse();
+    packages.sort_by(|a, b| a.size.cmp(&b.size).then(a.ref_.cmp(&b.ref_)).reverse());
 
     download_uncached_packages(&packages, ctx).await?;
 
@@ -85,18 +82,13 @@ async fn install_packages(
     Ok(())
 }
 
-/// Number of packages downloaded over HTTP concurrently.
-/// Bounded by network/bandwidth, not CPU — can be relatively high.
 const DOWNLOAD_CONCURRENCY: usize = 4;
-
-/// Number of packages being extracted (blocking, CPU + disk I/O) concurrently.
-/// Bounded by CPU cores, kept separate so a slow extract doesn't stall downloads.
 const EXTRACT_CONCURRENCY: usize = 4;
 
 async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -> Result {
     let to_download: Vec<LockedPackage> = packages
         .iter()
-        .filter(|pkg| !ctx.store.contains(&pkg.store_entry()))
+        .filter(|locked| !ctx.store.contains(&locked.store_entry()))
         .cloned()
         .collect();
 
@@ -113,35 +105,47 @@ async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -
     let _enter = span.enter();
 
     stream::iter(to_download)
-        .map(|package| {
-            // Stage 1: async download only. No blocking CPU work here.
-            async move {
-                let bytes = download(&package, ctx)
-                    .await
-                    .with_context(|| format!("error while downloading {}", package.ref_.id()))?;
+        .map(|package| async move {
+            let bytes = download(&package, ctx)
+                .await
+                .with_context(|| format!("error while downloading {}", package.ref_.id()))?;
 
-                Ok::<_, anyhow::Error>((package, bytes))
+            if let Some(expected_checksum) = &package.checksum {
+                trace!(
+                    package = %package.ref_.id(),
+                    %expected_checksum,
+                    "verifying checksum"
+                );
+
+                let checksum = Checksum::compute(&bytes[..], expected_checksum.algorithm())
+                    .context("failed to compute checksum")?;
+
+                if &checksum != expected_checksum {
+                    bail!(
+                        "checksum mismatch for {}: expected {expected_checksum}, got {checksum}",
+                        package.ref_.id()
+                    );
+                }
             }
+
+            Ok::<_, anyhow::Error>((package, bytes))
         })
         .buffer_unordered(DOWNLOAD_CONCURRENCY)
-        .map(|result| {
-            // Stage 2: extraction, moved to a blocking thread pool so it
-            // doesn't hog the async runtime while other downloads are in flight.
-            async move {
-                let (package, bytes) = result?;
+        .map(|result| async move {
+            let (package, bytes) = result?;
 
-                let store = ctx.store.clone();
+            // need 'static lifetime for spawn_blocking
+            let store = ctx.store.clone();
 
-                tokio::task::spawn_blocking(move || {
-                    store
-                        .add(&package.store_entry(), Cursor::new(bytes))
-                        .with_context(|| format!("error while extracting {}", package.ref_.id()))?;
+            tokio::task::spawn_blocking(move || {
+                store
+                    .add(&package.store_entry(), Cursor::new(bytes))
+                    .with_context(|| format!("error while extracting {}", package.ref_.id()))?;
 
-                    Ok::<_, anyhow::Error>(package)
-                })
-                .await
-                .context("extraction task panicked")?
-            }
+                Ok::<_, anyhow::Error>(package)
+            })
+            .await
+            .context("extraction task panicked")?
         })
         .buffer_unordered(EXTRACT_CONCURRENCY)
         .try_for_each(|package| {
@@ -177,8 +181,8 @@ async fn download(package: &LockedPackage, ctx: &Context) -> Result<Vec<u8>> {
 
     let mut vec = Vec::with_capacity(package.size.unwrap_or(0) as usize);
     if let Some(path) = package.url.strip_prefix("file://") {
-        let mut file = File::open(path)?;
-        file.read_to_end(&mut vec)?;
+        let mut file = tokio::fs::File::open(path).await?;
+        file.read_to_end(&mut vec).await?;
 
         package_span.pb_inc(vec.len() as u64);
     } else {
@@ -186,7 +190,9 @@ async fn download(package: &LockedPackage, ctx: &Context) -> Result<Vec<u8>> {
 
         while let Some(chunk) = stream.try_next().await? {
             vec.extend_from_slice(&chunk);
-            package_span.pb_inc(chunk.len() as u64);
+            if package.size.is_some() {
+                package_span.pb_inc(chunk.len() as u64);
+            }
         }
     }
 

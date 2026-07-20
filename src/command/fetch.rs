@@ -1,3 +1,5 @@
+use anyhow::Context as _;
+
 use crate::{Context, Result};
 
 #[derive(Debug, clap::Parser)]
@@ -11,7 +13,9 @@ impl super::Command for FetchCommand {
         let game = match self.game {
             Some(game) => game,
             None => {
-                let profile = ctx.read_profile()?;
+                let profile = ctx
+                    .read_profile()
+                    .context("failed to determine game to fetch")?;
                 profile.game().to_string()
             }
         };
