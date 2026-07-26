@@ -8,7 +8,7 @@ use loadsmith::{r2z, thunderstore::PackageIdExt};
 use tracing::{debug, info, warn};
 use tracing_indicatif::span_ext::IndicatifSpanExt;
 
-use crate::{Context, Result, profile::Profile};
+use crate::{Context, Result, Source, profile::Profile};
 
 #[derive(Debug, clap::Parser)]
 #[command(about = "Export the current profile to a file or Thunderstore code")]
@@ -79,7 +79,7 @@ impl ExportCommand {
             .packages()
             .iter()
             .filter(|package| {
-                if package.source == "thunderstore" {
+                if package.source == Source::Thunderstore.to_string() {
                     true
                 } else {
                     warn!(
