@@ -60,7 +60,7 @@ async fn install_packages(
 ) -> Result {
     let span = tracing::info_span!("install_packages");
     span.pb_set_style(&ProgressStyle::default_spinner());
-    span.pb_set_message("installing packages...");
+    span.pb_set_message("installing mods...");
 
     let _enter = span.enter();
     let schema = ThunderstoreSchema::load(ctx).await?;

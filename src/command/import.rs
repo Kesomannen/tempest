@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, io::Cursor, path::PathBuf};
 
 use anyhow::{Context as _, bail};
-use loadsmith::{PackageId, VersionRange, r2z, thunderstore::PackageIdExt};
+use loadsmith::{PackageId, VersionReq, r2z, thunderstore::PackageIdExt};
 use tracing::{debug, info, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 use uuid::Uuid;
@@ -65,9 +65,13 @@ impl super::Command for ImportCommand {
             .mods
             .into_iter()
             .map(|m| {
+                let version = loadsmith::Version::from(m.version);
+                let version_req = VersionReq::parse(&version.to_string())
+                    .expect("failed to parse version requirement");
+
                 (
                     PackageId::from_ts_ident(m.name),
-                    manifest::ModSpec::new(VersionRange::exact(m.version)),
+                    manifest::ModSpec::new(version_req),
                 )
             })
             .collect::<BTreeMap<_, _>>();
@@ -202,7 +206,7 @@ impl ImportCommand {
                 let _enter = span.enter();
 
                 let content = ctx
-                    .thunderstore
+                    .thunderstore_client
                     .get_profile(uuid)
                     .await
                     .context("error downloading profile")?;

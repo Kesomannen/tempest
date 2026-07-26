@@ -58,7 +58,7 @@ impl super::Command for ExportCommand {
             let enter = span.enter();
 
             let key = ctx
-                .thunderstore
+                .thunderstore_client
                 .create_profile(&buffer)
                 .await
                 .context("error while uploading profile")?;

@@ -8,6 +8,7 @@ use crate::{
     manifest::{Manifest, Mods, ProfileInfo},
     profile::Profile,
     schema::ThunderstoreSchema,
+    source::Source,
 };
 
 #[derive(Debug, clap::Parser)]
@@ -15,6 +16,7 @@ use crate::{
 pub struct NewCommand {
     path: PathBuf,
     game: String,
+    default_source: Option<Source>,
 }
 
 impl super::Command for NewCommand {
@@ -30,15 +32,22 @@ impl super::Command for NewCommand {
         let _loader = schema.make_loader(&self.game)?;
         let _platforms = schema.make_platforms(&self.game)?;
 
-        let profile = Profile::create(
-            self.path,
-            Manifest::new(ProfileInfo::new(self.game), Mods::default()),
-        )?;
+        let mut profile_info = ProfileInfo::new(self.game);
+        if let Some(source) = self.default_source {
+            profile_info = profile_info.with_default_source(source);
+        }
+
+        let profile = Profile::create(self.path, Manifest::new(profile_info, Mods::default()))?;
 
         info!(
-            "created new profile at `{}` with game {}",
+            "created new profile at `{}` with game {}{}",
             profile.path().display(),
-            profile.game()
+            profile.game(),
+            if let Some(source) = self.default_source {
+                format!(" and default source {source}")
+            } else {
+                String::new()
+            }
         );
 
         Ok(())

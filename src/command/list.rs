@@ -3,7 +3,7 @@ use tracing::info;
 use crate::{Context, Result};
 
 #[derive(Debug, clap::Parser)]
-#[command(about = "List the packages in the current profile", alias = "ls")]
+#[command(about = "List the mods in the current profile", alias = "ls")]
 pub struct ListCommand;
 
 impl super::Command for ListCommand {
@@ -12,7 +12,7 @@ impl super::Command for ListCommand {
 
         let mut builder = tabled::builder::Builder::new();
 
-        builder.push_record(vec!["package", "version", "source", "transitive"]);
+        builder.push_record(vec!["mod", "version", "source", "transitive"]);
 
         let mut sorted_packages = profile.lockfile.packages().iter().collect::<Vec<_>>();
         sorted_packages.sort_by(|a, b| a.ref_.id().cmp(&b.ref_.id()));

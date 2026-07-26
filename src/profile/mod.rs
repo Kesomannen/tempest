@@ -6,7 +6,7 @@ use loadsmith::{Lockfile, ProfileState, ProfileStateData};
 use tracing::debug;
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
-use crate::{Context, Result, manifest::Manifest, util};
+use crate::{Context, Result, manifest::Manifest, source::Source, util};
 
 mod sync;
 
@@ -175,6 +175,15 @@ impl Profile {
         Ok(())
     }
 
+    pub fn default_source(&self) -> Source {
+        const DEFAULT_DEFAULT_SOURCE: Source = Source::Thunderstore;
+
+        self.manifest
+            .profile
+            .default_source
+            .unwrap_or(DEFAULT_DEFAULT_SOURCE)
+    }
+
     async fn resolve(&self, ctx: &Context, update: bool) -> Result<Lockfile> {
         let span = tracing::info_span!("resolve_manifest");
         span.pb_set_style(&ProgressStyle::default_spinner());
@@ -182,8 +191,14 @@ impl Profile {
 
         let _enter = span.enter();
 
+        let dependencies = self
+            .manifest
+            .mods
+            .clone()
+            .into_dependencies(self.default_source());
+
         loadsmith::resolve(
-            self.manifest.mods.clone().into_dependencies(),
+            dependencies,
             &ctx.registry_set,
             if update { None } else { Some(&self.lockfile) },
         )

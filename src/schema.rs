@@ -12,7 +12,7 @@ pub struct ThunderstoreSchema {
 impl ThunderstoreSchema {
     pub async fn load(ctx: &Context) -> Result<Self> {
         let schema = ctx
-            .thunderstore
+            .thunderstore_client
             .get_schema("dev")
             .await
             .context("failed to fetch thunderstore schema")?;
