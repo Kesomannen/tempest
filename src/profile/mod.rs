@@ -176,12 +176,10 @@ impl Profile {
     }
 
     pub fn default_source(&self) -> Source {
-        const DEFAULT_DEFAULT_SOURCE: Source = Source::Thunderstore;
-
         self.manifest
             .profile
             .default_source
-            .unwrap_or(DEFAULT_DEFAULT_SOURCE)
+            .unwrap_or(Source::Thunderstore)
     }
 
     async fn resolve(&self, ctx: &Context, update: bool) -> Result<Lockfile> {

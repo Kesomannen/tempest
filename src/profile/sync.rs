@@ -1,10 +1,10 @@
-use std::io::Cursor;
+use std::{io::Cursor, time::Duration};
 
 use anyhow::{Context as _, bail};
 use futures::{StreamExt, TryStreamExt, stream};
 use loadsmith::{Checksum, InstallRuleset, Loader, LockedPackage, PackageRef};
 use tokio::io::AsyncReadExt;
-use tracing::{debug, info, trace};
+use tracing::{debug, info, trace, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
 use crate::{Context, Result, profile::Profile, schema::ThunderstoreSchema};
@@ -20,14 +20,12 @@ pub async fn sync_profile(ctx: &Context, profile: &mut Profile) -> Result {
     let to_remove = diff.to_remove().cloned().collect::<Vec<_>>();
     let to_add = diff.to_add().cloned().collect::<Vec<_>>();
 
-    if !to_remove.is_empty() {
-        for package in to_remove {
-            debug!("uninstalling {}", package.ref_().id());
+    for package in to_remove {
+        debug!("uninstalling {}", package.ref_().id());
 
-            profile.state.uninstall(&package.ref_().id())?;
+        profile.state.uninstall(&package.ref_().id())?;
 
-            profile.write_state()?;
-        }
+        profile.write_state()?;
     }
 
     if !to_add.is_empty() {
@@ -160,8 +158,8 @@ async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -
 }
 
 async fn download(package: &LockedPackage, ctx: &Context) -> Result<Vec<u8>> {
-    let package_span = tracing::info_span!(parent: None, "download_package");
-    package_span.pb_set_style(
+    let span = tracing::info_span!(parent: None, "download_package");
+    span.pb_set_style(
         &ProgressStyle::default_bar()
             .template(
                 "[{elapsed_precise}] [{bar:40.cyan/blue}] {bytes:>10}/{total_bytes:10}: {msg}",
@@ -170,12 +168,12 @@ async fn download(package: &LockedPackage, ctx: &Context) -> Result<Vec<u8>> {
             .progress_chars("=>-"),
     );
 
-    package_span.pb_set_message(package.ref_.id().as_str());
+    span.pb_set_message(package.ref_.id().as_str());
     if let Some(size) = package.size {
-        package_span.pb_set_length(size);
+        span.pb_set_length(size);
     }
 
-    let _package_enter = package_span.enter();
+    let _package_enter = span.enter();
 
     debug!("downloading {}", package.ref_.id());
 
@@ -184,19 +182,70 @@ async fn download(package: &LockedPackage, ctx: &Context) -> Result<Vec<u8>> {
         let mut file = tokio::fs::File::open(path).await?;
         file.read_to_end(&mut vec).await?;
 
-        package_span.pb_inc(vec.len() as u64);
+        span.pb_inc(vec.len() as u64);
     } else {
-        let mut stream = ctx.http.get(&package.url).send().await?.bytes_stream();
-
-        while let Some(chunk) = stream.try_next().await? {
-            vec.extend_from_slice(&chunk);
-            if package.size.is_some() {
-                package_span.pb_inc(chunk.len() as u64);
-            }
-        }
+        download_with_retries(package, ctx, &mut vec, &span).await?;
     }
 
     Ok(vec)
+}
+
+async fn download_with_retries(
+    package: &LockedPackage,
+    ctx: &Context,
+    vec: &mut Vec<u8>,
+    span: &tracing::Span,
+) -> Result {
+    let mut retries = 0;
+    loop {
+        match try_download(&ctx.http, package, vec, span).await {
+            Ok(()) => break Ok(()),
+            Err(err) if retries >= 3 => {
+                debug!(retries, "download failed after retries, giving up");
+                return Err(err);
+            }
+            Err(err) => {
+                let backoff = Duration::from_secs(2u64.pow(retries).min(30));
+
+                warn!(
+                    error = %err,
+                    ?backoff,
+                    retry = retries,
+                    "download failed, retrying",
+                );
+
+                span.pb_set_position(0);
+                vec.clear();
+
+                retries += 1;
+
+                tokio::time::sleep(backoff).await;
+            }
+        }
+    }
+}
+
+async fn try_download(
+    http: &reqwest::Client,
+    package: &LockedPackage,
+    buf: &mut Vec<u8>,
+    span: &tracing::Span,
+) -> Result {
+    let mut stream = http
+        .get(&package.url)
+        .send()
+        .await?
+        .error_for_status()?
+        .bytes_stream();
+
+    while let Some(chunk) = stream.try_next().await? {
+        buf.extend_from_slice(&chunk);
+        if package.size.is_some() {
+            span.pb_inc(chunk.len() as u64);
+        }
+    }
+
+    Ok(())
 }
 
 fn ruleset_for_package<'a>(
