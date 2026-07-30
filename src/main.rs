@@ -4,13 +4,13 @@ use loadsmith::{
     GithubRegistry, LocalRegistry, RegistrySet, ThunderstoreRegistry, thunderstore::SqliteIndex,
 };
 use tempest::Source;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, trace, warn};
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 const DEFAULT_DIRECTIVE: &str = "info";
 const VERBOSE_DIRECTIVE: &str =
-    "trace,h2=info,hyper_util=info,reqwest=info,globset=info,rustls=info,tower=info";
+    "debug,h2=info,hyper_util=info,reqwest=info,globset=info,rustls=info,tower=info";
 
 #[tokio::main]
 async fn main() {
@@ -23,10 +23,12 @@ async fn main() {
 async fn try_main() -> anyhow::Result<()> {
     let cli = tempest::Cli::parse();
 
-    let rust_log_set = std::env::var("RUST_LOG").is_ok();
+    const LOG_ENV_VAR: &str = "TEMPEST_LOG";
+
+    let rust_log_set = std::env::var(LOG_ENV_VAR).is_ok();
 
     let filter = if rust_log_set {
-        EnvFilter::from_default_env()
+        EnvFilter::from_env(LOG_ENV_VAR)
     } else if cli.verbose {
         EnvFilter::new(VERBOSE_DIRECTIVE)
     } else {
@@ -49,7 +51,7 @@ async fn try_main() -> anyhow::Result<()> {
         .context("failed to initialise logging")?;
 
     if cli.verbose && rust_log_set {
-        warn!("RUST_LOG is set, verbose flag will be ignored");
+        warn!("{LOG_ENV_VAR} is set, --verbose flag will be ignored");
     }
 
     rustls::crypto::aws_lc_rs::default_provider()
@@ -58,7 +60,7 @@ async fn try_main() -> anyhow::Result<()> {
 
     let ctx = create_context(&cli)?;
 
-    // trace!(ctx = %format!("{ctx:#?}"), "created context");
+    trace!(?ctx, "created context");
 
     cli.run(&ctx).await
 }
@@ -85,13 +87,13 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
     )
     .context("failed to open index")?;
 
-    let hexium_client = thunderstore::Client::builder()
-        .with_client(http.clone())
-        .with_base_url("https://valheim.hexium.gg")
-        .build()
-        .context("failed to initialise hexium client")?;
-    let hexium_index = SqliteIndex::open(hexium_client.clone(), home_dir.join("hexium.db"))
-        .context("failed to open hexium index")?;
+    // let hexium_client = thunderstore::Client::builder()
+    //     .with_client(http.clone())
+    //     .with_base_url("https://valheim.hexium.gg")
+    //     .build()
+    //     .context("failed to initialise hexium client")?;
+    // let hexium_index = SqliteIndex::open(hexium_client.clone(), home_dir.join("hexium.db"))
+    //     .context("failed to open hexium index")?;
 
     let mut registry_set = RegistrySet::new();
     registry_set.add(Source::Local, LocalRegistry::new());
@@ -100,10 +102,10 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
         Source::Thunderstore,
         ThunderstoreRegistry::sqlite(thunderstore_client.clone(), thunderstore_index.clone()),
     );
-    registry_set.add(
-        Source::Hexium,
-        ThunderstoreRegistry::sqlite(hexium_client.clone(), hexium_index.clone()),
-    );
+    // registry_set.add(
+    //     Source::Hexium,
+    //     ThunderstoreRegistry::sqlite(hexium_client.clone(), hexium_index.clone()),
+    // );
 
     let working_dir = std::env::current_dir().context("failed to determine working directory")?;
 
@@ -129,7 +131,7 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
         store,
         registry_set,
         thunderstore_client,
-        hexium_client,
+        // hexium_client,
         indexes,
     ))
 }

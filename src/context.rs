@@ -14,7 +14,7 @@ pub struct Context {
     pub(crate) store: PackageStore,
     pub(crate) registry_set: RegistrySet,
     pub(crate) thunderstore_client: thunderstore::Client,
-    pub(crate) hexium_client: thunderstore::Client,
+    // pub(crate) hexium_client: thunderstore::Client,
     pub(crate) indexes: Indexes,
 }
 
@@ -30,7 +30,7 @@ impl Context {
         store: PackageStore,
         registry_set: RegistrySet,
         thunderstore_client: thunderstore::Client,
-        hexium_client: thunderstore::Client,
+        // hexium_client: thunderstore::Client,
         indexes: Indexes,
     ) -> Self {
         Self {
@@ -42,7 +42,7 @@ impl Context {
             store,
             registry_set,
             thunderstore_client,
-            hexium_client,
+            // hexium_client,
             indexes,
         }
     }

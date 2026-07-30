@@ -22,7 +22,7 @@ pub use source::Source;
 type Result<T = (), E = anyhow::Error> = std::result::Result<T, E>;
 
 #[derive(Debug, clap::Parser)]
-#[command(version, about, long_about = None)]
+#[command(version, about)]
 pub struct Cli {
     #[arg(short, long, global = true, help = "Enable verbose logging")]
     pub verbose: bool,

@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context as _, bail};
 use camino::Utf8Path;
@@ -6,7 +9,9 @@ use loadsmith::{Lockfile, ProfileState, ProfileStateData};
 use tracing::debug;
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
-use crate::{Context, Result, manifest::Manifest, source::Source, util};
+use crate::{
+    Context, Result, manifest::Manifest, schema::ThunderstoreSchema, source::Source, util,
+};
 
 mod sync;
 
@@ -27,10 +32,6 @@ impl Profile {
     }
 
     pub fn create(path: impl Into<PathBuf>, manifest: Manifest) -> Result<Self> {
-        const GIT_IGNORE: &str = r"# tempest profile state
-/_state
-";
-
         let path = path.into();
         let lockfile = Lockfile::default();
         let state = ProfileState::new(path, ProfileStateData::default());
@@ -43,10 +44,50 @@ impl Profile {
 
         this.write_all()?;
 
-        std::fs::write(this.path().join(".gitignore"), GIT_IGNORE)
-            .context("failed to write .gitignore")?;
-
         Ok(this)
+    }
+
+    pub fn write_git_ignore_from_schema(&self, schema: &ThunderstoreSchema) -> Result {
+        match schema.make_loader(self.game()) {
+            Ok(loader) => self.write_git_ignore(&loader.package_config_dirs()),
+            Err(err) => {
+                debug!(
+                    %err,
+                    "failed to create loader for game '{}', writing default .gitignore",
+                    self.game()
+                );
+                self.write_git_ignore::<PathBuf>(&[])
+            }
+        }
+    }
+
+    pub fn write_git_ignore<P: AsRef<Path>>(&self, config_dirs: &[P]) -> Result {
+        let mut text = String::from(
+            r"# exclude everything by default
+/**
+
+# include gitignore, manifest and lockfile
+!/.gitignore
+!/tempest.toml
+!/tempest.lock
+",
+        );
+
+        if !config_dirs.is_empty() {
+            let config_dirs_string = config_dirs
+                .iter()
+                .map(|p| unignore_directory(p))
+                .collect::<String>();
+
+            text.push_str(&format!(
+                "\n# include config directories\n{}",
+                config_dirs_string
+            ));
+        }
+
+        fs::write(self.path().join(".gitignore"), text).context("failed to write .gitignore")?;
+
+        Ok(())
     }
 
     const MANIFEST_FILE_NAME: &str = "tempest.toml";
@@ -149,11 +190,9 @@ impl Profile {
         &self.manifest.profile.game
     }
 
-    pub async fn resolve_and_sync(&mut self, ctx: &Context, update: bool) -> Result {
+    pub async fn resolve_and_sync(&mut self, ctx: &Context, update: bool) -> Result<bool> {
         self.resolve_and_update_lockfile(ctx, update).await?;
-        self.sync(ctx).await?;
-
-        Ok(())
+        self.sync(ctx).await
     }
 
     async fn resolve_and_update_lockfile(&mut self, ctx: &Context, update: bool) -> Result {
@@ -204,7 +243,44 @@ impl Profile {
         .context("error while resolving manifest")
     }
 
-    pub async fn sync(&mut self, ctx: &Context) -> Result {
+    pub async fn sync(&mut self, ctx: &Context) -> Result<bool> {
         sync::sync_profile(ctx, self).await
+    }
+}
+
+fn unignore_directory(path: impl AsRef<Path>) -> String {
+    let mut buf = PathBuf::new();
+    let mut out = String::new();
+
+    for comp in path.as_ref().components() {
+        buf.push(comp);
+
+        let path_str = buf.to_string_lossy().replace('\\', "/");
+        let line = format!("!/{path_str}/");
+        out.push_str(&line);
+        out.push('\n');
+    }
+
+    let path_str = path.as_ref().to_string_lossy().replace('\\', "/");
+    let line = format!("!/{path_str}/**");
+    out.push_str(&line);
+
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gitignore_unignore_directory() {
+        let path = Path::new("BepInEx/config");
+        let result = unignore_directory(path);
+        assert_eq!(
+            result,
+            r"!/BepInEx/
+!/BepInEx/config/
+!/BepInEx/config/**"
+        );
     }
 }

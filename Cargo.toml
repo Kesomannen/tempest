@@ -2,6 +2,7 @@
 name = "tempest"
 version = "0.1.0"
 edition = "2024"
+description = "tempest is a tool for managing mods for various games, primarily focused on Thunderstore."
 
 [dependencies]
 loadsmith = { path = "../loadsmith/crates/loadsmith" }

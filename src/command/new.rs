@@ -39,6 +39,8 @@ impl super::Command for NewCommand {
 
         let profile = Profile::create(self.path, Manifest::new(profile_info, Mods::default()))?;
 
+        profile.write_git_ignore_from_schema(&schema)?;
+
         info!(
             "created new profile at `{}` with game {}{}",
             profile.path().display(),

@@ -6,9 +6,12 @@ use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 use crate::{Context, Result};
 
 #[derive(Debug, clap::Parser)]
-#[command(about = "Clean up mods from the store")]
+#[command(about = "Clean up mods from the disk store")]
 pub struct CleanCommand {
-    #[arg(long, help = "Remove all mods from the store, even if they are in use")]
+    #[arg(
+        long,
+        help = "Remove all mods from the store, even if they are still referenced by profiles"
+    )]
     force: bool,
 }
 

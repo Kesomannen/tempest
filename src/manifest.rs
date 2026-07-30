@@ -20,6 +20,7 @@ pub struct ProfileInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(transparent)]
 pub struct Mods(BTreeMap<PackageId, ModSpec>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,8 +62,8 @@ impl Mods {
         Self(mods)
     }
 
-    pub fn insert(&mut self, package_id: PackageId, mod_: ModSpec) {
-        self.0.insert(package_id, mod_);
+    pub fn insert(&mut self, package_id: PackageId, mod_: ModSpec) -> Option<ModSpec> {
+        self.0.insert(package_id, mod_)
     }
 
     pub fn get(&self, package_id: &PackageId) -> Option<&ModSpec> {

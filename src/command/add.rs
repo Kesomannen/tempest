@@ -7,7 +7,9 @@ use crate::{Context, Result, index::Index, profile::Profile, source::Source};
 #[derive(Debug, clap::Parser)]
 #[command(about = "Add mods to the current profile", alias = "a")]
 pub struct AddCommand {
-    #[arg(help = "List of mods to add, optionally with version range (e.g. 'package@=1.2.3')")]
+    #[arg(
+        help = "List of space-separated mods to add, optionally with version range (e.g. 'package@=1.2.3')"
+    )]
     mods: Vec<String>,
 
     #[arg(short, long, help = "Specify the source for the added mods")]
@@ -16,7 +18,7 @@ pub struct AddCommand {
     #[arg(
         short,
         long,
-        help = "Upgrade existing mods to the latest version if available"
+        help = "Upgrade already installed mods to the latest version that satisfies the specified version range"
     )]
     upgrade: bool,
 }
@@ -141,11 +143,20 @@ impl AddCommand {
         match results.len() {
             0 => bail!("mod with name '{name}' not found"),
             1 => {
-                let result = results.into_iter().next().unwrap();
+                let package_id = results.into_iter().next().unwrap();
+
+                if package_id
+                    .as_str()
+                    .split_once('-')
+                    .is_some_and(|(_author, package_name)| name == package_name)
+                {
+                    debug!("found mod with id {package_id} matching name '{name}'");
+                    return Ok(Some(package_id));
+                }
 
                 let confirmed = dialoguer::Confirm::new()
                     .with_prompt(format!(
-                        "found mod with id {result}, is this the mod you meant?",
+                        "found mod with id {package_id}, is this the mod you meant?",
                     ))
                     .default(true)
                     .interact()?;
@@ -154,7 +165,7 @@ impl AddCommand {
                     return Ok(None);
                 }
 
-                Ok(Some(result))
+                Ok(Some(package_id))
             }
             count if count <= 20 => {
                 let selection = dialoguer::Select::new()
