@@ -11,21 +11,7 @@ Tempest is an experimental CLI tool for managing mods for various games, primari
 
 ## Installation
 
-Prebuilt binaries are currently not available.
-
-To build Tempest, the Rust toolchain is required. To begin, clone the repository:
-
-```
-git clone https://github.com/Kesomannen/tempest.git
-```
-
-Navigate to the project directory and run:
-
-```
-cargo build --release
-```
-
-The binary will be built to `target/release`.
+Binaries are available in [Releases](https://github.com/Kesomannen/tempest/releases).
 
 ## Usage
 
