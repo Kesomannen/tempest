@@ -42,7 +42,9 @@ impl super::Command for AddCommand {
                     .with_context(|| format!("failed to read local mod at path '{path}'"))?;
 
                 let Some(package_id) = package_id else {
-                    bail!("could not determine package ID for local mod at path '{path}'");
+                    bail!(
+                        "could not determine package ID for local mod at path '{path}', please manually add a manifest entry instead"
+                    );
                 };
 
                 let version_req: VersionReq = version_info

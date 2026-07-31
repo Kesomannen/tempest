@@ -72,3 +72,19 @@ Either share your mods by using normal git commands, or create a Thunderstore pr
 ```bash
 tempest export
 ```
+
+### Local mods
+
+Local mod files have first party support in Tempest. Add a locally sourced mod with `add`:
+
+```bash
+tempest add --source local "C:\Users\user\Downloads\loaforc-loaforcsSoundAPI-2.0.11.zip"
+tempest add --source local "C:\Users\user\Downloads\already-extracted-mod"
+tempest add --source local "C:\Users\user\Downloads\mod.dll"
+```
+
+To check for changes in the mod file and reinstall if necessary:
+
+```bash
+tempest install
+```

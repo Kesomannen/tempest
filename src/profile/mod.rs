@@ -80,7 +80,7 @@ impl Profile {
                 .collect::<String>();
 
             text.push_str(&format!(
-                "\n# include config directories\n{}",
+                "\n# include config directories\n{}\n",
                 config_dirs_string
             ));
         }
