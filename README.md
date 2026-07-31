@@ -32,7 +32,7 @@ cd MyProfile
 Add a Thunderstore mod to the manifest and install it along with dependencies by using `add`:
 
 ```bash
-tempest add x753-Mimcs
+tempest add x753-Mimics
 ```
 
 > [!TIP]
