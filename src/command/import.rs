@@ -36,6 +36,9 @@ pub struct ImportCommand {
     #[arg(short, long, help = "Merge the imported profile with an existing one")]
     merge: bool,
 
+    #[arg(long, help = "Install disabled mods from the imported profile")]
+    include_disabled: bool,
+
     #[arg(
         short,
         long,
@@ -57,12 +60,23 @@ impl super::Command for ImportCommand {
             .game
             .or_else(|| import_manifest.extra.community.clone())
             .context(
-                "imported name does not specify a game, please provide one with the --game option",
+                "imported profile does not specify a game, please provide one with the --game option",
             )?;
 
         let mods = import_manifest
             .mods
             .into_iter()
+            .filter(|m| {
+                if m.enabled {
+                    true
+                } else if self.include_disabled {
+                    debug!("including disabled mod {} from import", m.name);
+                    true
+                } else {
+                    debug!("skipping disabled mod {} from import", m.name);
+                    false
+                }
+            })
             .map(|m| {
                 let version = loadsmith::Version::from(m.version);
                 let version_req = VersionReq::parse(&version.to_string())

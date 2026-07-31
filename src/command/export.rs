@@ -83,7 +83,7 @@ impl ExportCommand {
                     true
                 } else {
                     warn!(
-                        "excluding non-thunderstore package {} from export",
+                        "excluding non-Thunderstore package {} from export",
                         package.ref_.id()
                     );
                     false

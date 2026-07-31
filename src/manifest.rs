@@ -143,6 +143,23 @@ impl ModSpec {
         }
     }
 
+    pub fn with_registry_metadata(self, metadata: serde_json::Value) -> Self {
+        match self {
+            ModSpec::Simple(range) => Self::Full {
+                version: Some(range),
+                source: None,
+                registry_metadata: metadata,
+            },
+            ModSpec::Full {
+                version, source, ..
+            } => Self::Full {
+                version,
+                source,
+                registry_metadata: metadata,
+            },
+        }
+    }
+
     fn into_dependency(self, package_id: PackageId, default_source: Source) -> Dependency {
         let guessed_source = self.guess_source();
 

@@ -1,8 +1,8 @@
 use anyhow::{Context as _, bail, ensure};
-use loadsmith::{PackageId, VersionReq};
+use loadsmith::{LocalRegistry, PackageId, VersionReq};
 use tracing::{debug, info};
 
-use crate::{Context, Result, index::Index, profile::Profile, source::Source};
+use crate::{Context, Result, index::Index, manifest::ModSpec, profile::Profile, source::Source};
 
 #[derive(Debug, clap::Parser)]
 #[command(about = "Add mods to the current profile", alias = "a")]
@@ -30,19 +30,42 @@ impl super::Command for AddCommand {
         let mut profile = super::read_profile(ctx)?;
         ctx.indexes.prepare(ctx, profile.game()).await?;
 
+        let mut resolved = Vec::new();
+
         let source = self.source.unwrap_or(profile.default_source());
 
-        let Some(index) = ctx.indexes.get(source) else {
-            bail!("no index found for source {source}");
-        };
+        if source == Source::Local {
+            let registry = LocalRegistry::default();
+            for path in self.mods {
+                let (package_id, version_info) = registry
+                    .read(loadsmith::registry::local::Metadata::new(path.clone()))
+                    .with_context(|| format!("failed to read local mod at path '{path}'"))?;
 
-        let mut resolved = Vec::new();
-        for mod_ in &self.mods {
-            let Some((id, version_range)) = self.resolve(mod_, &profile, index)? else {
-                continue;
+                let Some(package_id) = package_id else {
+                    bail!("could not determine package ID for local mod at path '{path}'");
+                };
+
+                let version_req: VersionReq = version_info
+                    .version
+                    .to_string()
+                    .parse()
+                    .expect("version should always be a valid requirement");
+
+                let spec = ModSpec::new(version_req).with_registry_metadata(serde_json::json!({
+                    "path": path,
+                }));
+                resolved.push((package_id, spec));
+            }
+        } else {
+            let Some(index) = ctx.indexes.get(source) else {
+                bail!("no index found for source {source}");
             };
 
-            resolved.push((id, version_range));
+            for mod_ in &self.mods {
+                if let Some((id, spec)) = self.resolve_from_index(mod_, &profile, index)? {
+                    resolved.push((id, spec));
+                };
+            }
         }
 
         if resolved.is_empty() {
@@ -50,13 +73,8 @@ impl super::Command for AddCommand {
             return Ok(());
         }
 
-        for (id, version_range) in resolved {
-            let mut mod_ = crate::manifest::ModSpec::new(version_range);
-            if let Some(source) = self.source {
-                mod_ = mod_.with_source(source);
-            }
-
-            profile.manifest.mods.insert(id.clone(), mod_);
+        for (id, spec) in resolved {
+            profile.manifest.mods.insert(id.clone(), spec);
         }
 
         profile.write_manifest()?;
@@ -68,12 +86,12 @@ impl super::Command for AddCommand {
 }
 
 impl AddCommand {
-    fn resolve(
+    fn resolve_from_index(
         &self,
         s: &str,
         profile: &Profile,
         index: &Index,
-    ) -> Result<Option<(PackageId, VersionReq)>> {
+    ) -> Result<Option<(PackageId, ModSpec)>> {
         let (name, version_req) = match s.split_once('@') {
             Some((id, version_str)) => {
                 let version: VersionReq = version_str
@@ -115,6 +133,15 @@ impl AddCommand {
             return Ok(None);
         }
 
+        self.select_version(id, version_req, versions).map(Some)
+    }
+
+    fn select_version(
+        &self,
+        id: PackageId,
+        version_req: Option<VersionReq>,
+        versions: Vec<loadsmith::registry::VersionInfo>,
+    ) -> Result<(PackageId, ModSpec)> {
         let version_range = if let Some(version) = version_req {
             let any_matches = versions.iter().any(|v| version.matches(&v.version));
             ensure!(
@@ -136,7 +163,12 @@ impl AddCommand {
                 .expect("version should always be a valid requirement")
         };
 
-        Ok(Some((id, version_range)))
+        let mut spec = ModSpec::new(version_range);
+        if let Some(source) = self.source {
+            spec = spec.with_source(source);
+        }
+
+        Ok((id, spec))
     }
 
     fn pick_search_result(mut results: Vec<PackageId>, name: &str) -> Result<Option<PackageId>> {
