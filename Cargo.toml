@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Kesomannen/tempest"
 
 [dependencies]
-loadsmith = "0.3.0"
+loadsmith = "0.3.1"
 
 thunderstore = "0.6.0"
 dialoguer = "0.12.0"
