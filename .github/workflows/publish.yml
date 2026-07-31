@@ -1,0 +1,33 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  packages: write
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        target: x86_64-pc-windows-gnu
+
+      - name: Build for Linux
+        run: cargo build --release --verbose
+
+      - name: Build for Windows
+        run: cargo build --release --verbose --target x86_64-pc-windows-gnu
+
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            target/release/tempest
+            target/x86_64-pc-windows-gnu/release/tempest.exe

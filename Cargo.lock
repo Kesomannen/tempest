@@ -1682,6 +1682,8 @@ checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 [[package]]
 name = "loadsmith"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a42284c21cfe76016955574bafb2a37d790c74d6eb79868ee7a6bac5b9308a7"
 dependencies = [
  "loadsmith-core",
  "loadsmith-github",
@@ -1697,6 +1699,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-core"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc79c7e448101db13fe9da82cc4575f000728860267c6f3023384c062fde5f52"
 dependencies = [
  "blake3",
  "camino",
@@ -1715,6 +1719,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-github"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b362c4b6d16995746e339a6485f9dcf90cfa3fda645ea362dc9cea001e79f92d"
 dependencies = [
  "globset",
  "http",
@@ -1731,6 +1737,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-install"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac9676c62f49006daba995057fa60e4040e910b48f285aa58dff60ebce55f790"
 dependencies = [
  "camino",
  "globset",
@@ -1747,6 +1755,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-loader"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "927e22fd5dc83893d92eaba2ccb143abb3d2ab8df0483bafddea6a866218229d"
 dependencies = [
  "camino",
  "globset",
@@ -1763,6 +1773,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-manifest"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49f281378146194ea4bbedb1486efd724c4123c56f40820f301adc9d76bbc100"
 dependencies = [
  "camino",
  "loadsmith-core",
@@ -1784,6 +1796,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-platform"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c0faf775fa3feee29d89a181e729469f95daea0e76b3944533a48fa3ff7832c"
 dependencies = [
  "camino",
  "loadsmith-loader",
@@ -1799,6 +1813,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-registry"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "617daaf305ea29b3815b1669f127d2bda3a0b189503b48740d9597b8347a7146"
 dependencies = [
  "camino",
  "digest-io",
@@ -1818,6 +1834,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-thunderstore"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54aef2e1b2934828b1178597259654e7f4cbc0906cf74f3920cc9bf60b4613ec"
 dependencies = [
  "camino",
  "chrono",
@@ -1847,6 +1865,8 @@ dependencies = [
 [[package]]
 name = "loadsmith-util"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b3af7cc41b5a8b513f0501c0741728d37550e48b601806087fa93bbb7ca61a4"
 dependencies = [
  "blake3",
  "semver",

@@ -2,7 +2,9 @@
 name = "tempest"
 version = "0.1.0"
 edition = "2024"
-description = "tempest is a tool for managing mods for various games, primarily focused on Thunderstore."
+description = "A tool for managing mods for various games, primarily focused on Thunderstore."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Kesomannen/tempest"
 
 [dependencies]
 loadsmith = "0.3.0"
