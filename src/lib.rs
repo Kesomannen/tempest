@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
 
 use crate::command::*;
@@ -7,6 +5,7 @@ use crate::command::*;
 mod command;
 mod config;
 mod context;
+mod graph;
 mod index;
 mod manifest;
 mod profile;
@@ -36,50 +35,45 @@ pub struct Cli {
     )]
     pub locked: bool,
 
-    #[arg(
-        long,
-        global = true,
-        help = "Specify the home directory for the application"
-    )]
-    pub home: Option<PathBuf>,
-
     #[command(subcommand)]
     command: Subcommand,
 }
 
 #[derive(Debug, clap::Subcommand)]
 enum Subcommand {
-    New(NewCommand),
-    Install(InstallCommand),
-    Upgrade(UpgradeCommand),
-    Fetch(FetchCommand),
-    Check(CheckCommand),
-    Launch(LaunchCommand),
-    Remove(RemoveCommand),
-    Import(ImportCommand),
-    Export(ExportCommand),
     Add(AddCommand),
-    List(ListCommand),
+    Check(CheckCommand),
     Clean(CleanCommand),
     Config(ConfigCommand),
+    Export(ExportCommand),
+    Fetch(FetchCommand),
+    Import(ImportCommand),
+    Install(InstallCommand),
+    Launch(LaunchCommand),
+    List(ListCommand),
+    New(NewCommand),
+    Remove(RemoveCommand),
+    Tree(TreeCommand),
+    Upgrade(UpgradeCommand),
 }
 
 impl Command for Subcommand {
     async fn run(self, ctx: &Context) -> anyhow::Result<()> {
         match self {
-            Subcommand::New(command) => command.run(ctx).await,
-            Subcommand::Install(command) => command.run(ctx).await,
-            Subcommand::Upgrade(command) => command.run(ctx).await,
-            Subcommand::Fetch(command) => command.run(ctx).await,
-            Subcommand::Check(command) => command.run(ctx).await,
-            Subcommand::Launch(command) => command.run(ctx).await,
-            Subcommand::Remove(command) => command.run(ctx).await,
-            Subcommand::Import(command) => command.run(ctx).await,
-            Subcommand::Export(command) => command.run(ctx).await,
             Subcommand::Add(command) => command.run(ctx).await,
-            Subcommand::List(command) => command.run(ctx).await,
+            Subcommand::Check(command) => command.run(ctx).await,
             Subcommand::Clean(command) => command.run(ctx).await,
             Subcommand::Config(command) => command.run(ctx).await,
+            Subcommand::Export(command) => command.run(ctx).await,
+            Subcommand::Fetch(command) => command.run(ctx).await,
+            Subcommand::Import(command) => command.run(ctx).await,
+            Subcommand::Install(command) => command.run(ctx).await,
+            Subcommand::Launch(command) => command.run(ctx).await,
+            Subcommand::List(command) => command.run(ctx).await,
+            Subcommand::New(command) => command.run(ctx).await,
+            Subcommand::Remove(command) => command.run(ctx).await,
+            Subcommand::Tree(command) => command.run(ctx).await,
+            Subcommand::Upgrade(command) => command.run(ctx).await,
         }
     }
 }

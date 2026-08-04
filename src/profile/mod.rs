@@ -92,7 +92,7 @@ impl Profile {
 
     const MANIFEST_FILE_NAME: &str = "tempest.toml";
     const LOCKFILE_FILE_NAME: &str = "tempest.lock";
-    const PROFILE_STATE_FILE_NAME: &str = "_state/tempest.json";
+    const PROFILE_STATE_FILE_NAME: &str = ".tempest/state.json";
 
     pub fn read_any_parent(path: impl Into<PathBuf>) -> Result<Self> {
         let mut path = path.into();
@@ -130,7 +130,7 @@ impl Profile {
     fn read_lockfile(path: &Path) -> Result<Lockfile> {
         let path = path.join(Self::LOCKFILE_FILE_NAME);
         if path.exists() {
-            util::read_json(&path)
+            util::read_toml(&path)
         } else {
             Ok(Lockfile::default())
         }
@@ -160,7 +160,7 @@ impl Profile {
     }
 
     pub fn write_lockfile(&self) -> Result {
-        util::write_json(self.path().join(Self::LOCKFILE_FILE_NAME), &self.lockfile)
+        util::write_toml(self.path().join(Self::LOCKFILE_FILE_NAME), &self.lockfile)
             .context("failed to write lockfile")
     }
 

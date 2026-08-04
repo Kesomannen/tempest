@@ -8,7 +8,7 @@ use crate::{Config, Result, index::Indexes, profile::Profile};
 pub struct Context {
     pub(crate) http: reqwest::Client,
     pub(crate) working_dir: PathBuf,
-    pub(crate) home_dir: PathBuf,
+    pub(crate) config_dir: PathBuf,
     pub(crate) locked: bool,
     pub(crate) config: RefCell<Config>,
     pub(crate) store: PackageStore,
@@ -24,7 +24,7 @@ impl Context {
     pub fn new(
         http: reqwest::Client,
         working_dir: PathBuf,
-        home_dir: PathBuf,
+        config_dir: PathBuf,
         locked: bool,
         config: Config,
         store: PackageStore,
@@ -36,7 +36,7 @@ impl Context {
         Self {
             http,
             working_dir,
-            home_dir,
+            config_dir,
             locked,
             config: RefCell::new(config),
             store,

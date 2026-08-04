@@ -1,6 +1,5 @@
-use std::collections::BTreeMap;
-
 use anyhow::anyhow;
+use indexmap::IndexMap;
 use loadsmith::{Dependency, PackageId, VersionReq};
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +20,7 @@ pub struct ProfileInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(transparent)]
-pub struct Mods(BTreeMap<PackageId, ModSpec>);
+pub struct Mods(IndexMap<PackageId, ModSpec>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -58,7 +57,7 @@ impl ProfileInfo {
 }
 
 impl Mods {
-    pub fn new(mods: BTreeMap<PackageId, ModSpec>) -> Self {
+    pub fn new(mods: IndexMap<PackageId, ModSpec>) -> Self {
         Self(mods)
     }
 
@@ -71,7 +70,7 @@ impl Mods {
     }
 
     pub fn remove(&mut self, package_id: &PackageId) -> Option<ModSpec> {
-        self.0.remove(package_id)
+        self.0.shift_remove(package_id)
     }
 
     pub fn into_dependencies(self, default_source: Source) -> impl Iterator<Item = Dependency> {
@@ -223,7 +222,7 @@ mod tests {
         "#;
 
         let mut mods: Mods = toml::from_str(toml_str).unwrap();
-        let mod_ = mods.0.remove(&package_id).unwrap();
+        let mod_ = mods.0.shift_remove(&package_id).unwrap();
 
         let dependency = mod_.into_dependency(package_id, Source::Thunderstore);
         assert_eq!(dependency.source, "local");
@@ -243,7 +242,7 @@ mod tests {
         "#;
 
         let mut mods: Mods = toml::from_str(toml_str).unwrap();
-        let mod_ = mods.0.remove(&package_id).unwrap();
+        let mod_ = mods.0.shift_remove(&package_id).unwrap();
 
         let dependency = mod_.into_dependency(package_id, Source::Thunderstore);
         assert_eq!(dependency.source, "thunderstore");

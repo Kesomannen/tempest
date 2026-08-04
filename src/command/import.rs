@@ -1,6 +1,7 @@
-use std::{collections::BTreeMap, io::Cursor, path::PathBuf};
+use std::{io::Cursor, path::PathBuf};
 
 use anyhow::{Context as _, bail};
+use indexmap::IndexMap;
 use loadsmith::{PackageId, VersionReq, r2z, thunderstore::PackageIdExt};
 use tracing::{debug, info, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
@@ -87,7 +88,7 @@ impl super::Command for ImportCommand {
                     manifest::ModSpec::new(version_req),
                 )
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<IndexMap<_, _>>();
 
         let path = Self::resolve_path(ctx, self.path, &import_manifest.profile_name);
 
@@ -162,7 +163,7 @@ impl ImportCommand {
     fn handle_existing(
         existing: &mut Profile,
         merge: bool,
-        mods: BTreeMap<PackageId, manifest::ModSpec>,
+        mods: IndexMap<PackageId, manifest::ModSpec>,
     ) -> Result {
         if merge {
             debug!("merging with existing profile");

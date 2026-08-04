@@ -38,9 +38,10 @@ colored = "3.1.1"
 walkdir = "2.5.0"
 humantime = "2.4.0"
 rustls = "0.23.41"
+indexmap = { version = "2.14.0", features = ["serde"] }
 
 [profile.release]
-opt-level = "s"
+opt-level = 3
 lto = "fat"
 codegen-units = 1
 strip = "symbols"

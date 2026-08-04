@@ -16,8 +16,8 @@ pub struct Config {
 impl Config {
     const FILE_NAME: &'static str = "config.toml";
 
-    pub fn read(home: impl AsRef<Path>) -> Result<Option<Self>> {
-        let path = home.as_ref().join(Self::FILE_NAME);
+    pub fn read(config_dir: impl AsRef<Path>) -> Result<Option<Self>> {
+        let path = config_dir.as_ref().join(Self::FILE_NAME);
         if !path.exists() {
             return Ok(None);
         }
@@ -31,7 +31,7 @@ impl Config {
     }
 
     pub fn write(&self, ctx: &Context) -> Result<()> {
-        let path = ctx.home_dir.join(Self::FILE_NAME);
+        let path = ctx.config_dir.join(Self::FILE_NAME);
 
         let s = toml::to_string_pretty(self).context("failed to serialize config")?;
         std::fs::write(&path, s).context("error writing config")?;

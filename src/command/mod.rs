@@ -10,6 +10,7 @@ mod launch;
 mod list;
 mod new;
 mod remove;
+mod tree;
 mod upgrade;
 
 pub use add::AddCommand;
@@ -24,6 +25,7 @@ pub use launch::LaunchCommand;
 pub use list::ListCommand;
 pub use new::NewCommand;
 pub use remove::RemoveCommand;
+pub use tree::TreeCommand;
 pub use upgrade::UpgradeCommand;
 
 use crate::{Context, Result};

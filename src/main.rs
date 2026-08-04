@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
 use clap::Parser;
 use loadsmith::{
@@ -11,6 +13,7 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 const DEFAULT_DIRECTIVE: &str = "info";
 const VERBOSE_DIRECTIVE: &str =
     "debug,h2=info,hyper_util=info,reqwest=info,globset=info,rustls=info,tower=info";
+const APP_IDENTIFIER: &str = "tempest";
 
 #[tokio::main]
 async fn main() {
@@ -65,18 +68,24 @@ async fn try_main() -> anyhow::Result<()> {
     cli.run(&ctx).await
 }
 
-fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
-    let home_dir = match &cli.home {
-        Some(path) => path.clone(),
-        None => dirs_next::home_dir()
-            .expect("failed to determine home directory")
-            .join(".tempest"),
-    };
+fn resolve_dir<F>(f: F, name: &str) -> anyhow::Result<PathBuf>
+where
+    F: FnOnce() -> Option<PathBuf>,
+{
+    let dir = f()
+        .with_context(|| format!("failed to determine {name} directory"))?
+        .join(APP_IDENTIFIER);
+    std::fs::create_dir_all(&dir).context(format!("failed to create {name} directory"))?;
+    Ok(dir)
+}
 
-    std::fs::create_dir_all(&home_dir).context("failed to create home directory")?;
+fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
+    let config_dir = resolve_dir(dirs_next::config_dir, "config")?;
+    let data_dir = resolve_dir(dirs_next::data_dir, "data")?;
+    let cache_dir = resolve_dir(dirs_next::cache_dir, "cache")?;
 
     let http = reqwest::Client::builder()
-        .user_agent(format!("tempest/{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("{}/{}", APP_IDENTIFIER, env!("CARGO_PKG_VERSION")))
         .build()
         .context("failed to create HTTP client")?;
 
@@ -86,7 +95,7 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
         .context("failed to initialise thunderstore client")?;
     let thunderstore_index = SqliteIndex::open(
         thunderstore_client.clone(),
-        home_dir.join("thunderstore.db"),
+        cache_dir.join("thunderstore.db"),
     )
     .context("failed to open index")?;
 
@@ -95,7 +104,7 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
     //     .with_base_url("https://valheim.hexium.gg")
     //     .build()
     //     .context("failed to initialise hexium client")?;
-    // let hexium_index = SqliteIndex::open(hexium_client.clone(), home_dir.join("hexium.db"))
+    // let hexium_index = SqliteIndex::open(hexium_client.clone(), cache_dir.join("hexium.db"))
     //     .context("failed to open hexium index")?;
 
     let mut registry_set = RegistrySet::new();
@@ -112,12 +121,12 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
 
     let working_dir = std::env::current_dir().context("failed to determine working directory")?;
 
-    let config = tempest::Config::read(&home_dir)?.unwrap_or_else(|| {
+    let config = tempest::Config::read(&config_dir)?.unwrap_or_else(|| {
         debug!("config file does not exist, using default config");
         tempest::Config::default()
     });
 
-    let store = loadsmith::PackageStore::open(home_dir.join("store"))
+    let store = loadsmith::PackageStore::open(data_dir.join("store"))
         .context("failed to open mod store")?;
 
     let indexes = tempest::Indexes::new(vec![
@@ -128,7 +137,7 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
     Ok(tempest::Context::new(
         http,
         working_dir,
-        home_dir,
+        config_dir,
         cli.locked,
         config,
         store,

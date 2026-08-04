@@ -2,6 +2,9 @@
 
 Tempest is an experimental CLI tool for managing mods for various games, primarily focused on the Thunderstore ecosystem. 
 
+> [!IMPORTANT]
+> Tempest is still incredible unstable and changes all the time. Do not expect your profiles to be compatible with future versions of the tool.
+
 ## Features
 
 - Manage mods with a manifest-based profile format inspired by Cargo.
@@ -74,3 +77,5 @@ To check for changes in the mod file and reinstall if necessary:
 ```bash
 tempest install
 ```
+
+More documentation is coming!
