@@ -1,7 +1,7 @@
 use crate::{Context, Result};
 
 #[derive(Debug, clap::Parser)]
-#[command(about = "")]
+#[command(about = "Manage tempest configuration")]
 pub struct ConfigCommand {
     #[command(subcommand)]
     command: Subcommand,
@@ -9,7 +9,7 @@ pub struct ConfigCommand {
 
 #[derive(Debug, Clone, clap::Subcommand)]
 enum Subcommand {
-    #[command(about = "Set a config value")]
+    #[command(about = "Set a property")]
     Set { property: String, value: String },
 }
 

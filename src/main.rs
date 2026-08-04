@@ -3,6 +3,7 @@ use clap::Parser;
 use loadsmith::{
     GithubRegistry, LocalRegistry, RegistrySet, ThunderstoreRegistry, thunderstore::SqliteIndex,
 };
+use tempest::Source;
 use tracing::{debug, error, trace, warn};
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
@@ -22,10 +23,12 @@ async fn main() {
 async fn try_main() -> anyhow::Result<()> {
     let cli = tempest::Cli::parse();
 
-    let rust_log_set = std::env::var("RUST_LOG").is_ok();
+    const LOG_ENV_VAR: &str = "TEMPEST_LOG";
+
+    let rust_log_set = std::env::var(LOG_ENV_VAR).is_ok();
 
     let filter = if rust_log_set {
-        EnvFilter::from_default_env()
+        EnvFilter::from_env(LOG_ENV_VAR)
     } else if cli.verbose {
         EnvFilter::new(VERBOSE_DIRECTIVE)
     } else {
@@ -48,7 +51,7 @@ async fn try_main() -> anyhow::Result<()> {
         .context("failed to initialise logging")?;
 
     if cli.verbose && rust_log_set {
-        warn!("RUST_LOG is set, verbose flag will be ignored");
+        warn!("{LOG_ENV_VAR} is set, --verbose flag will be ignored");
     }
 
     rustls::crypto::aws_lc_rs::default_provider()
@@ -57,7 +60,7 @@ async fn try_main() -> anyhow::Result<()> {
 
     let ctx = create_context(&cli)?;
 
-    trace!(ctx = %format!("{ctx:#?}"), "created context");
+    trace!(?ctx, "created context");
 
     cli.run(&ctx).await
 }
@@ -76,20 +79,36 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
         .user_agent(format!("tempest/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .context("failed to create HTTP client")?;
-    let thunderstore = thunderstore::Client::builder()
+
+    let thunderstore_client = thunderstore::Client::builder()
         .with_client(http.clone())
         .build()
         .context("failed to initialise thunderstore client")?;
-    let index = SqliteIndex::open(thunderstore.clone(), home_dir.join("index.db"))
-        .context("failed to open index")?;
+    let thunderstore_index = SqliteIndex::open(
+        thunderstore_client.clone(),
+        home_dir.join("thunderstore.db"),
+    )
+    .context("failed to open index")?;
+
+    // let hexium_client = thunderstore::Client::builder()
+    //     .with_client(http.clone())
+    //     .with_base_url("https://valheim.hexium.gg")
+    //     .build()
+    //     .context("failed to initialise hexium client")?;
+    // let hexium_index = SqliteIndex::open(hexium_client.clone(), home_dir.join("hexium.db"))
+    //     .context("failed to open hexium index")?;
 
     let mut registry_set = RegistrySet::new();
-    registry_set.add("local", LocalRegistry::new());
-    registry_set.add("github", GithubRegistry::new());
+    registry_set.add(Source::Local, LocalRegistry::new());
+    registry_set.add(Source::Github, GithubRegistry::new());
     registry_set.add(
-        "thunderstore",
-        ThunderstoreRegistry::sqlite(thunderstore.clone(), index.clone()),
+        Source::Thunderstore,
+        ThunderstoreRegistry::sqlite(thunderstore_client.clone(), thunderstore_index.clone()),
     );
+    // registry_set.add(
+    //     Source::Hexium,
+    //     ThunderstoreRegistry::sqlite(hexium_client.clone(), hexium_index.clone()),
+    // );
 
     let working_dir = std::env::current_dir().context("failed to determine working directory")?;
 
@@ -99,17 +118,23 @@ fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
     });
 
     let store = loadsmith::PackageStore::open(home_dir.join("store"))
-        .context("failed to open package store")?;
+        .context("failed to open mod store")?;
+
+    let indexes = tempest::Indexes::new(vec![
+        tempest::Index::new(thunderstore_index, Source::Thunderstore),
+        // tempest::Index::new(hexium_index, Source::Hexium),
+    ]);
 
     Ok(tempest::Context::new(
         http,
-        thunderstore,
-        registry_set,
-        index,
         working_dir,
         home_dir,
         cli.locked,
         config,
         store,
+        registry_set,
+        thunderstore_client,
+        // hexium_client,
+        indexes,
     ))
 }

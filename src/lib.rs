@@ -11,16 +11,19 @@ mod index;
 mod manifest;
 mod profile;
 mod schema;
+mod source;
 mod util;
 
 pub use config::Config;
 pub use context::Context;
+pub use index::{Index, Indexes};
+pub use source::Source;
 
 // type Error = anyhow::Error;
 type Result<T = (), E = anyhow::Error> = std::result::Result<T, E>;
 
 #[derive(Debug, clap::Parser)]
-#[command(version, about, long_about = None)]
+#[command(version, about)]
 pub struct Cli {
     #[arg(short, long, global = true, help = "Enable verbose logging")]
     pub verbose: bool,

@@ -1,20 +1,21 @@
 use std::{cell::RefCell, path::PathBuf};
 
-use loadsmith::{PackageStore, RegistrySet, thunderstore::SqliteIndex};
+use loadsmith::{PackageStore, RegistrySet};
 
-use crate::{Config, Result, profile::Profile};
+use crate::{Config, Result, index::Indexes, profile::Profile};
 
 #[derive(Debug)]
 pub struct Context {
     pub(crate) http: reqwest::Client,
-    pub(crate) thunderstore: thunderstore::Client,
-    pub(crate) registry_set: RegistrySet,
-    pub(crate) index: SqliteIndex,
     pub(crate) working_dir: PathBuf,
     pub(crate) home_dir: PathBuf,
     pub(crate) locked: bool,
     pub(crate) config: RefCell<Config>,
     pub(crate) store: PackageStore,
+    pub(crate) registry_set: RegistrySet,
+    pub(crate) thunderstore_client: thunderstore::Client,
+    // pub(crate) hexium_client: thunderstore::Client,
+    pub(crate) indexes: Indexes,
 }
 
 impl Context {
@@ -22,25 +23,27 @@ impl Context {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         http: reqwest::Client,
-        thunderstore: thunderstore::Client,
-        registry_set: RegistrySet,
-        index: SqliteIndex,
         working_dir: PathBuf,
         home_dir: PathBuf,
         locked: bool,
         config: Config,
         store: PackageStore,
+        registry_set: RegistrySet,
+        thunderstore_client: thunderstore::Client,
+        // hexium_client: thunderstore::Client,
+        indexes: Indexes,
     ) -> Self {
         Self {
             http,
-            thunderstore,
-            registry_set,
-            index,
             working_dir,
             home_dir,
             locked,
             config: RefCell::new(config),
             store,
+            registry_set,
+            thunderstore_client,
+            // hexium_client,
+            indexes,
         }
     }
 

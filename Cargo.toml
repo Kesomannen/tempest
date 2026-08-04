@@ -2,9 +2,12 @@
 name = "tempest"
 version = "0.1.0"
 edition = "2024"
+description = "A tool for managing mods for various games, primarily focused on Thunderstore."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Kesomannen/tempest"
 
 [dependencies]
-loadsmith = { path = "../loadsmith/crates/loadsmith" }
+loadsmith = "0.3.1"
 
 thunderstore = "0.6.0"
 dialoguer = "0.12.0"

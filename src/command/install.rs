@@ -10,7 +10,7 @@ pub struct InstallCommand;
 impl super::Command for InstallCommand {
     async fn run(self, ctx: &Context) -> Result<()> {
         let mut profile = ctx.read_profile()?;
-        crate::index::check(ctx, profile.game()).await?;
+        ctx.indexes.prepare(ctx, profile.game()).await?;
 
         profile.resolve_and_sync(ctx, false).await?;
 

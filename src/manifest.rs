@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use anyhow::anyhow;
-use loadsmith::{Dependency, PackageId, VersionRange};
+use loadsmith::{Dependency, PackageId, VersionReq};
 use serde::{Deserialize, Serialize};
 
-use crate::Result;
+use crate::{Result, source::Source};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
@@ -15,20 +15,23 @@ pub struct Manifest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileInfo {
     pub game: String,
+    #[serde(default)]
+    pub default_source: Option<Source>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(transparent)]
 pub struct Mods(BTreeMap<PackageId, ModSpec>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ModSpec {
-    Simple(VersionRange),
+    Simple(VersionReq),
     Full {
         #[serde(default)]
-        version: Option<VersionRange>,
+        version: Option<VersionReq>,
         #[serde(default)]
-        source: Option<String>,
+        source: Option<Source>,
         #[serde(flatten)]
         registry_metadata: serde_json::Value,
     },
@@ -42,7 +45,15 @@ impl Manifest {
 
 impl ProfileInfo {
     pub fn new(game: impl Into<String>) -> Self {
-        Self { game: game.into() }
+        Self {
+            game: game.into(),
+            default_source: None,
+        }
+    }
+
+    pub fn with_default_source(mut self, source: Source) -> Self {
+        self.default_source = Some(source);
+        self
     }
 }
 
@@ -51,8 +62,8 @@ impl Mods {
         Self(mods)
     }
 
-    pub fn insert(&mut self, package_id: PackageId, mod_: ModSpec) {
-        self.0.insert(package_id, mod_);
+    pub fn insert(&mut self, package_id: PackageId, mod_: ModSpec) -> Option<ModSpec> {
+        self.0.insert(package_id, mod_)
     }
 
     pub fn get(&self, package_id: &PackageId) -> Option<&ModSpec> {
@@ -63,10 +74,10 @@ impl Mods {
         self.0.remove(package_id)
     }
 
-    pub fn into_dependencies(self) -> impl Iterator<Item = Dependency> {
+    pub fn into_dependencies(self, default_source: Source) -> impl Iterator<Item = Dependency> {
         self.0
             .into_iter()
-            .map(|(package_id, mod_)| mod_.into_dependency(package_id))
+            .map(move |(package_id, mod_)| mod_.into_dependency(package_id, default_source))
     }
 
     pub fn get_or_search<'a>(
@@ -109,19 +120,15 @@ impl Mods {
 }
 
 impl ModSpec {
-    const DEFAULT_REGISTRY: &str = "thunderstore";
-    const LOCAL_REGISTRY: &str = "local";
-    const GITHUB_REGISTRY: &str = "github";
-
-    pub fn new(version: impl Into<VersionRange>) -> Self {
-        Self::Simple(version.into())
+    pub fn new(version_req: impl Into<VersionReq>) -> Self {
+        Self::Simple(version_req.into())
     }
 
-    pub fn with_source(self, source: impl Into<String>) -> Self {
+    pub fn with_source(self, source: Source) -> Self {
         match self {
             ModSpec::Simple(range) => Self::Full {
                 version: Some(range),
-                source: Some(source.into()),
+                source: Some(source),
                 registry_metadata: serde_json::Value::Null,
             },
             ModSpec::Full {
@@ -130,13 +137,30 @@ impl ModSpec {
                 ..
             } => Self::Full {
                 version,
-                source: Some(source.into()),
+                source: Some(source),
                 registry_metadata,
             },
         }
     }
 
-    fn into_dependency(self, package_id: PackageId) -> Dependency {
+    pub fn with_registry_metadata(self, metadata: serde_json::Value) -> Self {
+        match self {
+            ModSpec::Simple(range) => Self::Full {
+                version: Some(range),
+                source: None,
+                registry_metadata: metadata,
+            },
+            ModSpec::Full {
+                version, source, ..
+            } => Self::Full {
+                version,
+                source,
+                registry_metadata: metadata,
+            },
+        }
+    }
+
+    fn into_dependency(self, package_id: PackageId, default_source: Source) -> Dependency {
         let guessed_source = self.guess_source();
 
         let (version_range, source, registry_metadata) = match self {
@@ -146,7 +170,7 @@ impl ModSpec {
                 source,
                 registry_metadata,
             } => (
-                version.unwrap_or(VersionRange::Any),
+                version.unwrap_or(VersionReq::STAR),
                 source,
                 match registry_metadata {
                     serde_json::Value::Object(map) if map.is_empty() => None,
@@ -156,29 +180,27 @@ impl ModSpec {
             ),
         };
 
-        let source = source
-            .or(guessed_source.map(ToString::to_string))
-            .unwrap_or_else(|| Self::DEFAULT_REGISTRY.to_string());
+        let source = source.or(guessed_source).unwrap_or(default_source);
 
-        let mut dep = Dependency::new(package_id, version_range, source);
+        let mut dep = Dependency::new(package_id, version_range, source.to_string());
         if let Some(metadata) = registry_metadata {
             dep = dep.with_registry_metadata(metadata);
         }
         dep
     }
 
-    fn guess_source(&self) -> Option<&'static str> {
+    fn guess_source(&self) -> Option<Source> {
         if let ModSpec::Full {
             registry_metadata: serde_json::Value::Object(map),
             ..
         } = self
         {
             if map.contains_key("path") {
-                return Some(Self::LOCAL_REGISTRY);
+                return Some(Source::Local);
             }
 
             if map.contains_key("repo") {
-                return Some(Self::GITHUB_REGISTRY);
+                return Some(Source::Github);
             }
         }
 
@@ -203,7 +225,7 @@ mod tests {
         let mut mods: Mods = toml::from_str(toml_str).unwrap();
         let mod_ = mods.0.remove(&package_id).unwrap();
 
-        let dependency = mod_.into_dependency(package_id);
+        let dependency = mod_.into_dependency(package_id, Source::Thunderstore);
         assert_eq!(dependency.source, "local");
         assert_eq!(
             dependency.registry_metadata,
@@ -223,7 +245,7 @@ mod tests {
         let mut mods: Mods = toml::from_str(toml_str).unwrap();
         let mod_ = mods.0.remove(&package_id).unwrap();
 
-        let dependency = mod_.into_dependency(package_id);
+        let dependency = mod_.into_dependency(package_id, Source::Thunderstore);
         assert_eq!(dependency.source, "thunderstore");
         assert_eq!(dependency.registry_metadata, None);
     }

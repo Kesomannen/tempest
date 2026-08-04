@@ -3,8 +3,13 @@ use anyhow::Context as _;
 use crate::{Context, Result};
 
 #[derive(Debug, clap::Parser)]
-#[command(about = "Update the Thunderstore package index for the current profile's game")]
+#[command(about = "Update the mod index for the current game")]
 pub struct FetchCommand {
+    #[arg(
+        short,
+        long,
+        help = "Specify the game to fetch the index for, or omit to use the game from the current profile"
+    )]
     game: Option<String>,
 }
 
@@ -20,7 +25,7 @@ impl super::Command for FetchCommand {
             }
         };
 
-        crate::index::update(ctx, &game).await?;
+        ctx.indexes.update(&game).await?;
         Ok(())
     }
 }

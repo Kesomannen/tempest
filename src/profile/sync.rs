@@ -1,43 +1,43 @@
-use std::io::Cursor;
+use std::{fmt::Display, time::Duration};
 
-use anyhow::{Context as _, bail};
+use anyhow::Context as _;
 use futures::{StreamExt, TryStreamExt, stream};
-use loadsmith::{Checksum, InstallRuleset, Loader, LockedPackage, PackageRef};
-use tokio::io::AsyncReadExt;
-use tracing::{debug, info, trace};
+use loadsmith::{InstallRuleset, Loader, LockedPackage, PackageRef};
+use tracing::{debug, info, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
 use crate::{Context, Result, profile::Profile, schema::ThunderstoreSchema};
 
-pub async fn sync_profile(ctx: &Context, profile: &mut Profile) -> Result {
+pub async fn sync_profile(ctx: &Context, profile: &mut Profile) -> Result<bool> {
     let diff = profile.state.diff_lockfile(&profile.lockfile);
 
     if diff.is_empty() {
         info!("profile is up to date");
-        return Ok(());
+        return Ok(false);
     }
 
     let to_remove = diff.to_remove().cloned().collect::<Vec<_>>();
     let to_add = diff.to_add().cloned().collect::<Vec<_>>();
 
-    if !to_remove.is_empty() {
-        for package in to_remove {
-            debug!("uninstalling {}", package.ref_().id());
+    for package in to_remove {
+        debug!("uninstalling {}", package.ref_().id());
 
-            profile.state.uninstall(&package.ref_().id())?;
+        profile
+            .state
+            .uninstall(&package.ref_().id())
+            .with_context(|| format!("error uninstalling {}", package.ref_()))?;
 
-            profile.write_state()?;
-        }
+        profile.write_state()?;
     }
 
     if !to_add.is_empty() {
-        donwload_and_install(to_add, ctx, profile).await?;
+        install_missing_packages(to_add, ctx, profile).await?;
     }
 
-    Ok(())
+    Ok(true)
 }
 
-async fn donwload_and_install(
+async fn install_missing_packages(
     mut packages: Vec<LockedPackage>,
     ctx: &Context,
     profile: &mut Profile,
@@ -46,21 +46,17 @@ async fn donwload_and_install(
 
     download_uncached_packages(&packages, ctx).await?;
 
-    let res = install_packages(packages, ctx, profile).await;
+    let res = do_install(packages, ctx, profile).await;
 
     profile.write_state()?;
 
     res
 }
 
-async fn install_packages(
-    packages: Vec<LockedPackage>,
-    ctx: &Context,
-    profile: &mut Profile,
-) -> Result {
+async fn do_install(packages: Vec<LockedPackage>, ctx: &Context, profile: &mut Profile) -> Result {
     let span = tracing::info_span!("install_packages");
     span.pb_set_style(&ProgressStyle::default_spinner());
-    span.pb_set_message("installing packages...");
+    span.pb_set_message("installing mods...");
 
     let _enter = span.enter();
     let schema = ThunderstoreSchema::load(ctx).await?;
@@ -83,7 +79,6 @@ async fn install_packages(
 }
 
 const DOWNLOAD_CONCURRENCY: usize = 4;
-const EXTRACT_CONCURRENCY: usize = 4;
 
 async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -> Result {
     let to_download: Vec<LockedPackage> = packages
@@ -106,48 +101,33 @@ async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -
 
     stream::iter(to_download)
         .map(|package| async move {
-            let bytes = download(&package, ctx)
-                .await
-                .with_context(|| format!("error while downloading {}", package.ref_.id()))?;
+            let store_entry = package.store_entry();
+            let target_path = ctx.store.reserve(&store_entry)?;
 
-            if let Some(expected_checksum) = &package.checksum {
-                trace!(
-                    package = %package.ref_.id(),
-                    %expected_checksum,
-                    "verifying checksum"
-                );
+            loadsmith::download_and_extract(package.url.clone(), target_path, |url| async {
+                #[derive(Debug)]
+                struct DownloadError(anyhow::Error);
 
-                let checksum = Checksum::compute(&bytes[..], expected_checksum.algorithm())
-                    .context("failed to compute checksum")?;
-
-                if &checksum != expected_checksum {
-                    bail!(
-                        "checksum mismatch for {}: expected {expected_checksum}, got {checksum}",
-                        package.ref_.id()
-                    );
+                impl Display for DownloadError {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(f, "{}", self.0)
+                    }
                 }
-            }
 
-            Ok::<_, anyhow::Error>((package, bytes))
-        })
-        .buffer_unordered(DOWNLOAD_CONCURRENCY)
-        .map(|result| async move {
-            let (package, bytes) = result?;
+                impl std::error::Error for DownloadError {}
 
-            // need 'static lifetime for spawn_blocking
-            let store = ctx.store.clone();
-
-            tokio::task::spawn_blocking(move || {
-                store
-                    .add(&package.store_entry(), Cursor::new(bytes))
-                    .with_context(|| format!("error while extracting {}", package.ref_.id()))?;
-
-                Ok::<_, anyhow::Error>(package)
+                // force the async block to take ownership of url
+                let url = url;
+                download_package(&url, &package, ctx)
+                    .await
+                    .map_err(DownloadError)
             })
             .await
-            .context("extraction task panicked")?
+            .with_context(|| format!("error while extracting {}", package.ref_.id()))?;
+
+            Ok::<_, anyhow::Error>(package)
         })
-        .buffer_unordered(EXTRACT_CONCURRENCY)
+        .buffer_unordered(DOWNLOAD_CONCURRENCY)
         .try_for_each(|package| {
             debug!("finished {}", package.ref_.id());
             span.pb_inc(1);
@@ -159,9 +139,13 @@ async fn download_uncached_packages(packages: &[LockedPackage], ctx: &Context) -
     Ok(())
 }
 
-async fn download(package: &LockedPackage, ctx: &Context) -> Result<Vec<u8>> {
-    let package_span = tracing::info_span!(parent: None, "download_package");
-    package_span.pb_set_style(
+async fn download_package(
+    url: &reqwest::Url,
+    package: &LockedPackage,
+    ctx: &Context,
+) -> Result<Vec<u8>> {
+    let span = tracing::info_span!(parent: None, "download_package");
+    span.pb_set_style(
         &ProgressStyle::default_bar()
             .template(
                 "[{elapsed_precise}] [{bar:40.cyan/blue}] {bytes:>10}/{total_bytes:10}: {msg}",
@@ -170,33 +154,80 @@ async fn download(package: &LockedPackage, ctx: &Context) -> Result<Vec<u8>> {
             .progress_chars("=>-"),
     );
 
-    package_span.pb_set_message(package.ref_.id().as_str());
+    span.pb_set_message(package.ref_.id().as_str());
     if let Some(size) = package.size {
-        package_span.pb_set_length(size);
+        span.pb_set_length(size);
     }
 
-    let _package_enter = package_span.enter();
+    let _package_enter = span.enter();
 
     debug!("downloading {}", package.ref_.id());
 
     let mut vec = Vec::with_capacity(package.size.unwrap_or(0) as usize);
-    if let Some(path) = package.url.strip_prefix("file://") {
-        let mut file = tokio::fs::File::open(path).await?;
-        file.read_to_end(&mut vec).await?;
+    download_with_retries(url, package, ctx, &mut vec, &span).await?;
 
-        package_span.pb_inc(vec.len() as u64);
-    } else {
-        let mut stream = ctx.http.get(&package.url).send().await?.bytes_stream();
+    Ok(vec)
+}
 
-        while let Some(chunk) = stream.try_next().await? {
-            vec.extend_from_slice(&chunk);
-            if package.size.is_some() {
-                package_span.pb_inc(chunk.len() as u64);
+async fn download_with_retries(
+    url: &reqwest::Url,
+    package: &LockedPackage,
+    ctx: &Context,
+    buf: &mut Vec<u8>,
+    span: &tracing::Span,
+) -> Result {
+    let mut retries = 0;
+    loop {
+        match try_download(url, package, buf, ctx, span).await {
+            Ok(()) => break Ok(()),
+            Err(err) if retries >= 3 => {
+                debug!(retries, "download failed after retries, giving up");
+                return Err(err);
+            }
+            Err(err) => {
+                let backoff = Duration::from_secs(2u64.pow(retries).min(30));
+
+                warn!(
+                    error = %err,
+                    ?backoff,
+                    retry = retries,
+                    "download failed, retrying",
+                );
+
+                span.pb_set_position(0);
+                buf.clear();
+
+                retries += 1;
+
+                tokio::time::sleep(backoff).await;
             }
         }
     }
+}
 
-    Ok(vec)
+async fn try_download(
+    url: &reqwest::Url,
+    package: &LockedPackage,
+    buf: &mut Vec<u8>,
+    ctx: &Context,
+    span: &tracing::Span,
+) -> Result {
+    let mut stream = ctx
+        .http
+        .get(url.clone())
+        .send()
+        .await?
+        .error_for_status()?
+        .bytes_stream();
+
+    while let Some(chunk) = stream.try_next().await? {
+        buf.extend_from_slice(&chunk);
+        if package.size.is_some() {
+            span.pb_inc(chunk.len() as u64);
+        }
+    }
+
+    Ok(())
 }
 
 fn ruleset_for_package<'a>(

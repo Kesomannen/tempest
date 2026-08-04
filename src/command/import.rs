@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, io::Cursor, path::PathBuf};
 
 use anyhow::{Context as _, bail};
-use loadsmith::{PackageId, VersionRange, r2z, thunderstore::PackageIdExt};
+use loadsmith::{PackageId, VersionReq, r2z, thunderstore::PackageIdExt};
 use tracing::{debug, info, warn};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 use uuid::Uuid;
@@ -10,6 +10,7 @@ use crate::{
     Context, Result,
     manifest::{self, Manifest, Mods, ProfileInfo},
     profile::Profile,
+    schema::ThunderstoreSchema,
 };
 
 #[derive(Debug, clap::ValueEnum, Clone, Copy, PartialEq, Eq, Default)]
@@ -29,11 +30,14 @@ pub struct ImportCommand {
     #[arg(help = "Path to save the imported profile")]
     path: Option<PathBuf>,
 
-    #[arg(long)]
+    #[arg(long, help = "Specify the game for the imported profile")]
     game: Option<String>,
 
-    #[arg(short, long)]
+    #[arg(short, long, help = "Merge the imported profile with an existing one")]
     merge: bool,
+
+    #[arg(long, help = "Install disabled mods from the imported profile")]
+    include_disabled: bool,
 
     #[arg(
         short,
@@ -55,19 +59,32 @@ impl super::Command for ImportCommand {
         let game = self
             .game
             .or_else(|| import_manifest.extra.community.clone())
-            .unwrap_or_else(|| {
-                warn!("imported profile does not specify a game, defaulting to 'unknown'");
-
-                "unknown".to_string()
-            });
+            .context(
+                "imported profile does not specify a game, please provide one with the --game option",
+            )?;
 
         let mods = import_manifest
             .mods
             .into_iter()
+            .filter(|m| {
+                if m.enabled {
+                    true
+                } else if self.include_disabled {
+                    debug!("including disabled mod {} from import", m.name);
+                    true
+                } else {
+                    debug!("skipping disabled mod {} from import", m.name);
+                    false
+                }
+            })
             .map(|m| {
+                let version = loadsmith::Version::from(m.version);
+                let version_req = VersionReq::parse(&version.to_string())
+                    .expect("failed to parse version requirement");
+
                 (
                     PackageId::from_ts_ident(m.name),
-                    manifest::ModSpec::new(VersionRange::exact(m.version)),
+                    manifest::ModSpec::new(version_req),
                 )
             })
             .collect::<BTreeMap<_, _>>();
@@ -117,18 +134,25 @@ impl super::Command for ImportCommand {
                 warn!("merge option specified but no existing profile found, creating new profile");
             }
 
-            let manifest = Manifest::new(ProfileInfo::new(game), Mods::new(mods));
+            let profile =
+                Profile::create(path, Manifest::new(ProfileInfo::new(game), Mods::new(mods)))?;
 
-            Profile::create(path, manifest)?
+            let schema = ThunderstoreSchema::load(ctx).await?;
+
+            profile.write_git_ignore_from_schema(&schema)?;
+
+            profile
         };
 
-        profile.resolve_and_sync(ctx, false).await?;
+        let changes_made = profile.resolve_and_sync(ctx, false).await?;
 
         import_file
             .import_config_files(profile.path(), true)
             .context("failed to import config files")?;
 
-        info!("imported profile to `{}`", profile.path().display());
+        if changes_made {
+            info!("imported profile to `{}`", profile.path().display());
+        }
 
         Ok(())
     }
@@ -202,7 +226,7 @@ impl ImportCommand {
                 let _enter = span.enter();
 
                 let content = ctx
-                    .thunderstore
+                    .thunderstore_client
                     .get_profile(uuid)
                     .await
                     .context("error downloading profile")?;
