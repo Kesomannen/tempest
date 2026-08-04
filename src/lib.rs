@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 use crate::command::*;
@@ -5,7 +7,6 @@ use crate::command::*;
 mod command;
 mod config;
 mod context;
-mod fmt;
 mod index;
 mod manifest;
 mod profile;
@@ -31,6 +32,13 @@ pub struct Cli {
         help = "Prevent any modifications to the lockfile"
     )]
     pub locked: bool,
+
+    #[arg(
+        long,
+        global = true,
+        help = "Specify the home directory for the application"
+    )]
+    pub home: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Subcommand,

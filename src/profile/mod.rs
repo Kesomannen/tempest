@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, bail};
 use camino::Utf8Path;
-use loadsmith::{Lockfile, ProfileState, ProfileStateData};
-use tracing::debug;
+use loadsmith::{LockedPackage, Lockfile, ProfileState, ProfileStateData, manifest::Diff};
+use tracing::{debug, info};
 use tracing_indicatif::{span_ext::IndicatifSpanExt, style::ProgressStyle};
 
 use crate::{Context, Result, manifest::Manifest, util};
@@ -153,6 +153,10 @@ impl Profile {
         self.resolve_and_update_lockfile(ctx, update).await?;
         self.sync(ctx).await?;
 
+        if !update {
+            self.check_for_updates(ctx).await?;
+        }
+
         Ok(())
     }
 
@@ -164,7 +168,7 @@ impl Profile {
             bail!("profile is locked, cannot update lockfile");
         }
 
-        crate::fmt::log_lockfile_diff(&diff);
+        Self::log_lockfile_diff(&diff);
 
         if !diff.is_empty() {
             self.lockfile = new_lockfile;
@@ -173,6 +177,40 @@ impl Profile {
         }
 
         Ok(())
+    }
+
+    fn log_lockfile_diff(diff: &Diff<LockedPackage, LockedPackage>) {
+        if diff.is_empty() {
+            debug!("lockfile satisfies manifest, no changes needed");
+            return;
+        }
+
+        for package in &diff.added {
+            info!("added {}", package.ref_);
+        }
+
+        for package in &diff.removed {
+            info!("removed {}", package.ref_.id());
+        }
+
+        for (old, new) in &diff.changed {
+            if old.ref_.version() == new.ref_.version() {
+                info!("{} changed", old.ref_.id());
+                continue;
+            }
+
+            info!(
+                "{} {}: {} -> {}",
+                if old.ref_.version() < new.ref_.version() {
+                    "upgraded"
+                } else {
+                    "downgraded"
+                },
+                old.ref_.id(),
+                old.ref_.version(),
+                new.ref_.version()
+            )
+        }
     }
 
     async fn resolve(&self, ctx: &Context, update: bool) -> Result<Lockfile> {
@@ -189,6 +227,44 @@ impl Profile {
         )
         .await
         .context("error while resolving manifest")
+    }
+
+    pub async fn check_for_updates(&self, ctx: &Context) -> Result {
+        let updated_lockfile = self.resolve(ctx, true).await?;
+        let diff = self.lockfile.diff(&updated_lockfile);
+
+        if diff.is_empty() {
+            debug!("no updates found");
+            return Ok(());
+        }
+
+        Self::log_updates(&diff);
+
+        Ok(())
+    }
+
+    fn log_updates(diff: &Diff<LockedPackage, LockedPackage>) {
+        if diff.changed.is_empty() {
+            return;
+        }
+
+        info!("there are {} mod updates available:", diff.changed.len());
+
+        for (old, new) in &diff.changed {
+            if old.ref_.version() == new.ref_.version() {
+                info!("{} changed", old.ref_.id());
+                continue;
+            }
+
+            info!(
+                "   {}: {} -> {}",
+                old.ref_.id(),
+                old.ref_.version(),
+                new.ref_.version()
+            )
+        }
+
+        info!("run `tempest upgrade` to upgrade");
     }
 
     pub async fn sync(&mut self, ctx: &Context) -> Result {

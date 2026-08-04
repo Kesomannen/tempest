@@ -3,13 +3,13 @@ use clap::Parser;
 use loadsmith::{
     GithubRegistry, LocalRegistry, RegistrySet, ThunderstoreRegistry, thunderstore::SqliteIndex,
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, error, trace, warn};
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 const DEFAULT_DIRECTIVE: &str = "info";
 const VERBOSE_DIRECTIVE: &str =
-    "trace,h2=info,hyper_util=info,reqwest=info,globset=info,rustls=info,tower=info";
+    "debug,h2=info,hyper_util=info,reqwest=info,globset=info,rustls=info,tower=info";
 
 #[tokio::main]
 async fn main() {
@@ -57,15 +57,18 @@ async fn try_main() -> anyhow::Result<()> {
 
     let ctx = create_context(&cli)?;
 
-    // trace!(ctx = %format!("{ctx:#?}"), "created context");
+    trace!(ctx = %format!("{ctx:#?}"), "created context");
 
     cli.run(&ctx).await
 }
 
 fn create_context(cli: &tempest::Cli) -> anyhow::Result<tempest::Context> {
-    let home_dir = dirs_next::home_dir()
-        .context("failed to determine home directory")?
-        .join(".tempest");
+    let home_dir = match &cli.home {
+        Some(path) => path.clone(),
+        None => dirs_next::home_dir()
+            .expect("failed to determine home directory")
+            .join(".tempest"),
+    };
 
     std::fs::create_dir_all(&home_dir).context("failed to create home directory")?;
 
