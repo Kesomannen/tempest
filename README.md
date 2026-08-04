@@ -3,7 +3,7 @@
 Tempest is an experimental CLI tool for managing mods for various games, primarily focused on the Thunderstore ecosystem. 
 
 > [!IMPORTANT]
-> Tempest is still incredible unstable and changes all the time. Do not expect your profiles to be compatible with future versions of the tool.
+> Tempest is still incredibly unstable and has breaking changes all the time. Do not expect your profiles to be compatible with future versions of the tool.
 
 ## Features
 
